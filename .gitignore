@@ -1,0 +1,28 @@
+
+# Xcode
+.DS_Store
+*.xcuserstate
+*.xcworkspace
+*.xcodeproj/project.xcworkspace/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/*.pbxuser
+*.xcodeproj/*.mode*
+*.xcodeproj/*.perspectivev3
+
+# SwiftPM
+.build/
+Package.resolved
+
+# Logs
+*.log
+
+# By-products
+DerivedData/
+.idea/
+.vscode/
+
+# Carthage (если вдруг был)
+Carthage/
+
+# CocoaPods (на всякий случай)
+Pods/
