@@ -7,35 +7,31 @@
 
 import Foundation
 
-/// Banner type
-public enum AcceleraBannerType: String {
-    /// Small banner that will be added on top of the screen
-    case notification
-    /// Middle size banner that will be displayed on top of the screen
-    case top
-    /// Middle size banner that will be centered
-    case center
-    /// Full screen banner
-    case fullscreen
-}
-
 /// Library configuration
-public struct AcceleraConfig {
+public struct AcceleraConfig: Codable {
+    
+    /// System URL provided by Accelera.
+    public let url: String?
+    
+    /// Application token provided by Accelera
+    public let systemToken: String?
+
+    /// Optional user info (string or JSON).
+    public internal(set) var userInfo: String?
+
     /**
-     Initializes configuration
-     
+     Initializes configuration.
+
+     You can skip all parameters if you want to handle networking manually.
+
      - Parameters:
-         - systemToken: application token provided by Accelera.
-         - url: system url provided by Accelera.
-         - userInfo: string or valid JSON string of the user information that you want to share with Accelera.
+        - url: system URL provided by Accelera
+        - systemToken: optional application token provided by Accelera.
+        - userInfo: optional user info (used by SDK only).
      */
-    public init(systemToken: String, url: String, userInfo: String? = nil) {
+    public init(url: String? = nil, systemToken: String? = nil, userInfo: String? = nil) {
         self.systemToken = systemToken
         self.url = url
         self.userInfo = userInfo
     }
-    
-    let systemToken: String
-    let url: String
-    var userInfo: String?
 }

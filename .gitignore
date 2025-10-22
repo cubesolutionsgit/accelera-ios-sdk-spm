@@ -26,3 +26,7 @@ Carthage/
 
 # CocoaPods (на всякий случай)
 Pods/
+
+#docs
+docs/
+.docc-build/

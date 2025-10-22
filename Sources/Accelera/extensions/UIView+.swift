@@ -10,7 +10,12 @@ import UIKit
 
 extension UIView {
     
-    public func removeAllConstraints() {
+    var parentViewController: UIViewController? {
+        sequence(first: self, next: { $0.next })
+            .first { $0 is UIViewController } as? UIViewController
+    }
+    
+    func removeAllConstraints() {
         var _superview = self.superview
         
         while let superview = _superview {

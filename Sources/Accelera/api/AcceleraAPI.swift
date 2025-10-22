@@ -7,42 +7,37 @@
 
 import Foundation
 
-final class AcceleraAPI {
-    
+final class AcceleraAPI: AcceleraAPIProtocol {
     init(config: AcceleraConfig) {
         self.config = config
-        self.client = WebClient(baseUrl: config.url)
+        self.client = WebClient(baseUrl: config.url!)
     }
-    
-    var client: WebClient
-    var config: AcceleraConfig
-        
-    @discardableResult
-    func logFirebaseEvent(data: JSON, completion: @escaping (JSON?, NetworkError?) -> ()) -> URLSessionDataTask? {
-        
-        return client.load(path: "/firebase/webhooks", method: .post, params: data, headers: ["Authorization": config.systemToken]) { result, error in
-            completion(result as? JSON, error)
-        }
-    }
+
+    let client: WebClient
+    let config: AcceleraConfig
     
     @discardableResult
-    func logEvent(data: [String: Any], completion: @escaping (JSON?, NetworkError?) -> ()) -> URLSessionDataTask? {
-        
-        var params = JSON()
-        params["data"] = data
-        
-        return client.load(path: "/events/event", method: .post, params: params, headers: ["Authorization": config.systemToken]) { result, error in
-            completion(result as? JSON, error)
-        }
+    public func logEvent(
+        data: Data?,
+        completion: @escaping (Data?, NetworkError?) -> Void
+    ) -> URLSessionDataTask? {
+        client.load(
+            path: "/api/v1/events",
+            method: .post,
+            body: data,
+            headers: ["Authorization": config.systemToken!],
+            completion: completion
+        )
     }
-    
+}
+
+final class AcceleraAPIStub: AcceleraAPIProtocol {
     @discardableResult
-    func loadBanner(completion: @escaping (JSON?, NetworkError?) -> ()) -> URLSessionDataTask? {
-        
-        let params = JSON()
-        
-        return client.load(path: "/banner/template", method: .get, params: params, headers: ["Authorization": config.systemToken]) { result, error in
-            completion(result as? JSON, error)
-        }
+    public func logEvent(
+        data: Data?,
+        completion: @escaping (Data?, NetworkError?) -> Void
+    ) -> URLSessionDataTask? {
+        completion(nil, .server(status: 501, message: "logEvent is not implemented in stub"))
+        return nil
     }
 }
