@@ -24,7 +24,10 @@ public final class WebClient {
     /// - Parameter baseUrl: The root URL for all requests (e.g. `https://api.domain.com`)
     public init(baseUrl: String) {
         self.baseUrl = baseUrl
-        self.session = URLSession(configuration: .default)
+        let config = URLSessionConfiguration.default
+        config.urlCache = nil
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        self.session = URLSession(configuration: config)
     }
 
     /**
