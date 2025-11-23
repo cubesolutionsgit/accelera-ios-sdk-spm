@@ -33,6 +33,7 @@ final class AcceleraFullscreenViewController: UIViewController {
     private var stateDuration: CFTimeInterval = 0
     private var isPaused: Bool = false
     private var pauseTime: CFTimeInterval = 0
+    private var isTransitioning: Bool = false
 
     init(jsonData: Data, entryId: String) {
         self.jsonData = jsonData
@@ -53,9 +54,7 @@ final class AcceleraFullscreenViewController: UIViewController {
         
         loadEntry(id: currentEntryId)
         
-        if entryIds.count > 1 || currentCards.count > 1 {
-            setupTapZones()
-        }
+        setupTapZones(multipleEntries: entryIds.count > 1 || currentCards.count > 1)
     }
 
     private func setupDivView() {
@@ -80,41 +79,58 @@ final class AcceleraFullscreenViewController: UIViewController {
         self.closeButton = button
     }
 
-    private func setupTapZones() {
-        let left = PassthroughZoneView()
-        left.divView = divView
-        left.translatesAutoresizingMaskIntoConstraints = false
-        left.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(prevCard)))
-
-        let right = PassthroughZoneView()
-        right.divView = divView
-        right.translatesAutoresizingMaskIntoConstraints = false
-        right.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(nextCard)))
-
-        if let closeButton = self.closeButton {
-            view.insertSubview(left, belowSubview: closeButton)
-            view.insertSubview(right, belowSubview: closeButton)
-        } else {
-            view.addSubview(left)
-            view.addSubview(right)
+    private func setupTapZones(multipleEntries: Bool = false) {
+        if multipleEntries {
+            let left = PassthroughZoneView()
+            left.divView = divView
+            left.translatesAutoresizingMaskIntoConstraints = false
+            left.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(prevCard)))
+            
+            let right = PassthroughZoneView()
+            right.divView = divView
+            right.translatesAutoresizingMaskIntoConstraints = false
+            right.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(nextCard)))
+            
+            if let closeButton = self.closeButton {
+                view.insertSubview(left, belowSubview: closeButton)
+                view.insertSubview(right, belowSubview: closeButton)
+            } else {
+                view.addSubview(left)
+                view.addSubview(right)
+            }
+            
+            NSLayoutConstraint.activate([
+                left.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+                left.topAnchor.constraint(equalTo: view.topAnchor),
+                left.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+                left.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.3),
+                
+                right.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+                right.topAnchor.constraint(equalTo: view.topAnchor),
+                right.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+                right.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.3)
+            ])
         }
-
-        NSLayoutConstraint.activate([
-            left.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            left.topAnchor.constraint(equalTo: view.topAnchor),
-            left.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            left.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.3),
-
-            right.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            right.topAnchor.constraint(equalTo: view.topAnchor),
-            right.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            right.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.3)
-        ])
         
         let press = UILongPressGestureRecognizer(target: self, action: #selector(handlePress(_:)))
         press.minimumPressDuration = 0.15
         press.cancelsTouchesInView = false
         view.addGestureRecognizer(press)
+        
+        let swipeDown = UISwipeGestureRecognizer(target: self, action: #selector(handleSwipeDown(_:)))
+        swipeDown.direction = .down
+        swipeDown.cancelsTouchesInView = false
+        view.addGestureRecognizer(swipeDown)
+        
+        let swipeLeft = UISwipeGestureRecognizer(target: self, action: #selector(handleHorizontalSwipe(_:)))
+        swipeLeft.direction = .left
+        swipeLeft.cancelsTouchesInView = false
+        view.addGestureRecognizer(swipeLeft)
+
+        let swipeRight = UISwipeGestureRecognizer(target: self, action: #selector(handleHorizontalSwipe(_:)))
+        swipeRight.direction = .right
+        swipeRight.cancelsTouchesInView = false
+        view.addGestureRecognizer(swipeRight)
     }
 
     private func loadEntryIds() {
@@ -185,10 +201,63 @@ final class AcceleraFullscreenViewController: UIViewController {
         }
         return false
     }
-
+    
     private func showCard(at index: Int) {
-        guard index >= 0 && index < currentCards.count else {
-            index < 0 ? moveToPrevEntry() : moveToNextEntry()
+        if index < 0 {
+            if currentEntryIndex - 1 >= 0 {
+                moveToPrevEntry(fromTap: true)
+            } else {
+                guard !currentCards.isEmpty else { return }
+
+                displayLink?.invalidate()
+                displayLink = nil
+
+                let restartIndex = 0
+                currentCardIndex = restartIndex
+
+                progressStack?.layoutIfNeeded()
+                for bar in progressBars {
+                    bar.setProgress(0)
+                }
+
+                guard let data = try? JSONSerialization.data(withJSONObject: currentCards[restartIndex]) else { return }
+
+                let source = DivViewSource(
+                    kind: .data(data),
+                    cardId: DivCardID(rawValue: "card_\(currentEntryId)_\(restartIndex)_\(UUID().uuidString)")
+                )
+
+                Task {
+                    await divView.setSource(source)
+                    Accelera.shared.logEvent(event: ["event": "view", "meta": jsonData.meta].asData)
+                }
+
+                guard
+                    let card = currentCards[restartIndex]["card"] as? [String: Any]
+                else {
+                    return
+                }
+
+                if let duration = card["duration"] as? Int {
+                    stateDuration = CFTimeInterval(duration) / 1000.0
+                } else if let div = card["div"] as? [String: Any],
+                          let duration = div["duration"] as? Int {
+                    stateDuration = CFTimeInterval(duration) / 1000.0
+                } else if !progressBars.isEmpty {
+                    stateDuration = 5.0
+                } else {
+                    return
+                }
+
+                stateStartTime = CACurrentMediaTime()
+                displayLink = CADisplayLink(target: self, selector: #selector(updateProgress))
+                displayLink?.add(to: .main, forMode: .common)
+            }
+            return
+        }
+
+        if index >= currentCards.count {
+            moveToNextEntry()
             return
         }
 
@@ -234,7 +303,7 @@ final class AcceleraFullscreenViewController: UIViewController {
         displayLink = CADisplayLink(target: self, selector: #selector(updateProgress))
         displayLink?.add(to: .main, forMode: .common)
     }
-
+    
     @objc private func updateProgress() {
         let elapsed = CACurrentMediaTime() - stateStartTime
         let progress = CGFloat(min(max(elapsed / stateDuration, 0), 1))
@@ -257,19 +326,70 @@ final class AcceleraFullscreenViewController: UIViewController {
         showCard(at: currentCardIndex - 1)
     }
 
+    private func transitionToEntry(id: String, direction: CGFloat, lastCard: Bool) {
+        guard !isTransitioning else { return }
+        isTransitioning = true
+        
+        displayLink?.invalidate()
+        displayLink = nil
+        
+        guard let snapshot = divView.snapshotView(afterScreenUpdates: false) else {
+            loadEntry(id: id, lastCard: lastCard)
+            isTransitioning = false
+            return
+        }
+        
+        snapshot.frame = divView.frame
+        view.addSubview(snapshot)
+        
+        let width = view.bounds.width
+        let initialTransform = CGAffineTransform(translationX: direction * width, y: 0)
+        
+        loadEntry(id: id, lastCard: lastCard)
+        
+        view.layoutIfNeeded()
+        divView.transform = initialTransform
+        divView.alpha = 0
+        
+        UIView.animate(
+            withDuration: 0.25,
+            delay: 0,
+            options: [.curveEaseInOut]
+        ) {
+            snapshot.transform = CGAffineTransform(translationX: -direction * width, y: 0)
+            snapshot.alpha = 0
+            self.divView.transform = .identity
+            self.divView.alpha = 1
+        } completion: { _ in
+            snapshot.removeFromSuperview()
+            self.isTransitioning = false
+        }
+    }
+
     private func moveToNextEntry() {
         guard currentEntryIndex + 1 < entryIds.count else {
             closeTapped()
             return
         }
-        loadEntry(id: entryIds[currentEntryIndex + 1])
+        let nextId = entryIds[currentEntryIndex + 1]
+        transitionToEntry(id: nextId, direction: 1, lastCard: false)
     }
 
-    private func moveToPrevEntry() {
-        guard currentEntryIndex - 1 >= 0 else {
-            return
+    private func moveToPrevEntry(fromTap: Bool) {
+        let isFirstEntry = currentEntryIndex - 1 < 0
+
+        if isFirstEntry {
+            if fromTap {
+                return
+            } else {
+                closeTapped()
+                return
+            }
         }
-        loadEntry(id: entryIds[currentEntryIndex - 1], lastCard: true)
+
+        let prevId = entryIds[currentEntryIndex - 1]
+        let lastCard = fromTap
+        transitionToEntry(id: prevId, direction: -1, lastCard: lastCard)
     }
     
     func pauseLottieAnimations(in view: UIView) {
@@ -331,6 +451,23 @@ final class AcceleraFullscreenViewController: UIViewController {
                 isPaused = false
             }
 
+        default:
+            break
+        }
+    }
+    
+    @objc private func handleSwipeDown(_ gesture: UISwipeGestureRecognizer) {
+        if gesture.state == .ended {
+            closeTapped()
+        }
+    }
+    
+    @objc private func handleHorizontalSwipe(_ gesture: UISwipeGestureRecognizer) {
+        switch gesture.direction {
+        case .left:
+            moveToNextEntry()
+        case .right:
+            moveToPrevEntry(fromTap: false)
         default:
             break
         }
