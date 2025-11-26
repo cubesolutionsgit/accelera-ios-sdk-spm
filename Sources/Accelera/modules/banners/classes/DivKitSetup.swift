@@ -16,11 +16,9 @@ import VGSL
 
 final class DivKitSetup {
 
-    // MARK: - Public API
-
     static func makeView(
         from jsonData: Data,
-        presentingViewController: UIViewController,
+        presentingViewController: UIViewController
     ) -> DivView {
         let components = makeComponents(
             presentingViewController: presentingViewController,
@@ -32,14 +30,18 @@ final class DivKitSetup {
         return divView
     }
 
-    // MARK: - Private
-
     private static func makeComponents(
         presentingViewController: UIViewController,
         jsonData: Data
     ) -> DivKitComponents {
         let requestPerformer = URLRequestPerformer(urlTransform: nil)
         let requester = NetworkURLResourceRequester(performer: requestPerformer)
+
+        let imageHolderFactory = ImageHolderFactory(
+            localImageProvider: CacheImageProvider(),
+            requestPerformer: requestPerformer
+        )
+
         let lottieHandler = LottieExtensionHandler(
             factory: LottieAnimationFactory(),
             requester: requester
@@ -53,19 +55,16 @@ final class DivKitSetup {
         return DivKitComponents(
             extensionHandlers: [lottieHandler],
             fontProvider: CustomFontProvider(),
+            imageHolderFactory: imageHolderFactory,
             urlHandler: urlHandler
         )
     }
-
-    // MARK: - FontProvider
 
     private final class CustomFontProvider: DivFontProvider {
         func font(family: String, weight: DivFontWeight, size: CGFloat) -> UIFont {
             UIFont(name: family, size: size) ?? .systemFont(ofSize: size)
         }
     }
-
-    // MARK: - Lottie
 
     private final class LottieAnimationFactory: AsyncSourceAnimatableViewFactory {
         func createAsyncSourceAnimatableView(
@@ -82,9 +81,24 @@ final class DivKitSetup {
             return animationView
         }
     }
-}
 
-// MARK: - Lottie Extension Protocol Conformance
+    private final class CacheImageProvider: LocalImageProviding {
+        func localImage(for url: URL) -> ImageHolder? {
+            guard url.scheme == "http" || url.scheme == "https" else {
+                return nil
+            }
+
+            let remote = url.absoluteString
+
+            guard let fileURL = AcceleraAssetCache.existingFileURL(forRemote: remote),
+                  let image = UIImage(contentsOfFile: fileURL.path) else {
+                return nil
+            }
+
+            return image
+        }
+    }
+}
 
 extension LottieAnimationView: DivKitExtensions.AsyncSourceAnimatableView {
     public func play() {
