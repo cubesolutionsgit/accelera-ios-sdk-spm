@@ -171,7 +171,7 @@ Accelera.shared.setUserInfo(
 
 ---
 
-📄 Версия: `0.4.0`  
-📆 Обновлено: октябрь 2025  
+📄 Версия: `0.4.1`
+📆 Обновлено: февраль 2026
 📫 Поддержка: [@cubesolutions](https://github.com/cubesolutionsgit)  
 📚 Полная документация по методам доступна по [ссылке](https://cubesolutionsgit.github.io/accelera-ios-sdk-spm/documentation/accelera)
