@@ -29,6 +29,13 @@ public protocol AcceleraDelegate: AnyObject {
     /// Handles custom action strings triggered by banners or other modules.
     /// - Parameter action: Action identifier string.
     func action(action: String)
+
+    /// Handles custom action strings with parsed payload from the event body.
+    /// - Parameters:
+    ///   - action: Action identifier string.
+    ///   - params: Query parameters extracted from the action URL.
+    ///   - meta: Optional metadata attached to the rendered content.
+    func action(action actionName: String, params: [String: String], meta: Any?)
 }
 
 public extension AcceleraDelegate {
@@ -60,5 +67,10 @@ public extension AcceleraDelegate {
     /// Default action handler — logs the action name.
     func action(action: String) {
         log("Banner action: \(action)")
+    }
+
+    /// Backward-compatible action handler that falls back to the legacy API.
+    func action(action actionName: String, params: [String: String], meta: Any?) {
+        self.action(action: actionName)
     }
 }

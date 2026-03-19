@@ -66,7 +66,7 @@ final class AcceleraUrlHandler: DivUrlHandler {
             hostVC?.dismiss(animated: true)
             
         default:
-            Accelera.shared.error("Unknown div-action type: \(url.host ?? "nil")")
+            break
         }
     }
 }

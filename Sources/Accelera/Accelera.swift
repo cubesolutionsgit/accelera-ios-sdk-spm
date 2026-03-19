@@ -84,7 +84,9 @@ public final class Accelera: NSObject {
     public func logEvent(event data: Data) {
         if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            let eventName = json["event"] as? String {
-            delegate?.action(action: eventName)
+            let params = json["params"] as? [String: String] ?? [:]
+            let meta = json["meta"]
+            delegate?.action(action: eventName, params: params, meta: meta)
         }
         
         if let jsonString = String(data: data, encoding: .utf8) {
