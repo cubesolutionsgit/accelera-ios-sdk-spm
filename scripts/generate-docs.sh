@@ -107,10 +107,18 @@ xcrun docc process-archive transform-for-static-hosting \
 
 touch "${TMP_OUTPUT}/.nojekyll"
 
+# Current DocC output keeps the correct hosting base path in the rendered
+# documentation entrypoint, but the root index may still point to "/".
+# Reuse the rendered module entrypoint as the site root for GitHub Pages.
+if [[ -f "${TMP_OUTPUT}/documentation/accelera/index.html" ]]; then
+  cp "${TMP_OUTPUT}/documentation/accelera/index.html" "${TMP_OUTPUT}/index.html"
+fi
+
 echo "Syncing generated site into ${OUTPUT_DIR}..."
 rsync -a --delete \
   --exclude '.git/' \
   --exclude '.idea/' \
+  --exclude 'theme-settings.json' \
   "${TMP_OUTPUT}/" "${OUTPUT_DIR}/"
 
 echo "Docs generated successfully."
