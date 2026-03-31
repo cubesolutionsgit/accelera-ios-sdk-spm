@@ -17,6 +17,7 @@ final class AcceleraFullscreenViewController: UIViewController {
     private let jsonData: Data
 
     private var divView: DivView!
+    private var divKitComponents: DivKitComponents?
     private var closeButton: UIButton?
 
     private var entryIds: [String] = []
@@ -57,16 +58,32 @@ final class AcceleraFullscreenViewController: UIViewController {
         setupTapZones(multipleEntries: entryIds.count > 1 || currentCards.count > 1)
     }
 
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        updateSafeAreaInsets()
+    }
+
+    override func viewSafeAreaInsetsDidChange() {
+        super.viewSafeAreaInsetsDidChange()
+        updateSafeAreaInsets()
+    }
+
     private func setupDivView() {
-        divView = DivKitSetup.makeView(from: jsonData, presentingViewController: self)
+        let context = DivKitSetup.makeView(from: jsonData, presentingViewController: self)
+        divView = context.view
+        divKitComponents = context.components
         view.addSubview(divView)
         divView.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            divView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            divView.topAnchor.constraint(equalTo: view.topAnchor),
             divView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             divView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             divView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
+    }
+
+    private func updateSafeAreaInsets() {
+        divKitComponents?.safeAreaManager.setEdgeInsets(view.safeAreaInsets)
     }
 
     private func setupCloseButton() {

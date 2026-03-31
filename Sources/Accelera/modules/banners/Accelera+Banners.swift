@@ -90,7 +90,7 @@ extension Accelera {
                     let divView = DivKitSetup.makeView(
                         from: jsonData,
                         presentingViewController: hostVC
-                    )
+                    ).view
                     
                     container.addSubview(divView)
                     

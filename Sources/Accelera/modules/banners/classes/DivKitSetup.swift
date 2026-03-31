@@ -19,7 +19,7 @@ final class DivKitSetup {
     static func makeView(
         from jsonData: Data,
         presentingViewController: UIViewController
-    ) -> DivView {
+    ) -> (view: DivView, components: DivKitComponents) {
         let components = makeComponents(
             presentingViewController: presentingViewController,
             jsonData: jsonData
@@ -27,7 +27,7 @@ final class DivKitSetup {
 
         let divView = DivView(divKitComponents: components)
         divView.translatesAutoresizingMaskIntoConstraints = false
-        return divView
+        return (divView, components)
     }
 
     private static func makeComponents(
