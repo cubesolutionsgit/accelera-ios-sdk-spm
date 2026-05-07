@@ -90,7 +90,7 @@ final class AcceleraFullscreenViewController: UIViewController {
         let button = CloseButtonView(target: self, action: #selector(closeTapped))
         view.addSubview(button)
         NSLayoutConstraint.activate([
-            button.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 16),
+            button.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 28),
             button.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16)
         ])
         self.closeButton = button
@@ -101,12 +101,12 @@ final class AcceleraFullscreenViewController: UIViewController {
             let left = PassthroughZoneView()
             left.divView = divView
             left.translatesAutoresizingMaskIntoConstraints = false
-            left.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(prevCard)))
+            left.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(prevCardTapped)))
             
             let right = PassthroughZoneView()
             right.divView = divView
             right.translatesAutoresizingMaskIntoConstraints = false
-            right.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(nextCard)))
+            right.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(nextCardTapped)))
             
             if let closeButton = self.closeButton {
                 view.insertSubview(left, belowSubview: closeButton)
@@ -244,15 +244,15 @@ final class AcceleraFullscreenViewController: UIViewController {
                     cardId: DivCardID(rawValue: "card_\(currentEntryId)_\(restartIndex)_\(UUID().uuidString)")
                 )
 
-                Task {
-                    await divView.setSource(source)
-                    Accelera.shared.logEvent(event: ["event": "view", "meta": jsonData.meta].asData)
-                }
-
                 guard
                     let card = currentCards[restartIndex]["card"] as? [String: Any]
                 else {
                     return
+                }
+
+                Task {
+                    await divView.setSource(source)
+                    Accelera.shared.logEvent(event: ["event": "view", "meta": card["meta"] ?? [:]].asData)
                 }
 
                 if let duration = card["duration"] as? Int {
@@ -296,13 +296,13 @@ final class AcceleraFullscreenViewController: UIViewController {
             cardId: DivCardID(rawValue: "card_\(currentEntryId)_\(index)")
         )
 
-        Task {
-            await divView.setSource(source)
-            Accelera.shared.logEvent(event: ["event": "view", "meta": jsonData.meta].asData)
-        }
-
         guard let card = currentCards[index]["card"] as? [String: Any] else {
             return
+        }
+
+        Task {
+            await divView.setSource(source)
+            Accelera.shared.logEvent(event: ["event": "view", "meta": card["meta"] ?? [:]].asData)
         }
 
         if let duration = card["duration"] as? Int {
@@ -338,9 +338,18 @@ final class AcceleraFullscreenViewController: UIViewController {
         showCard(at: currentCardIndex + 1)
     }
 
+    @objc private func nextCardTapped() {
+        logCurrentCardClose()
+        nextCard()
+    }
+
     @objc private func prevCard() {
         displayLink?.invalidate()
         showCard(at: currentCardIndex - 1)
+    }
+
+    @objc private func prevCardTapped() {
+        prevCard()
     }
 
     private func transitionToEntry(id: String, direction: CGFloat, lastCard: Bool) {
@@ -385,7 +394,7 @@ final class AcceleraFullscreenViewController: UIViewController {
 
     private func moveToNextEntry() {
         guard currentEntryIndex + 1 < entryIds.count else {
-            closeTapped()
+            closeFullscreen()
             return
         }
         let nextId = entryIds[currentEntryIndex + 1]
@@ -399,7 +408,7 @@ final class AcceleraFullscreenViewController: UIViewController {
             if fromTap {
                 return
             } else {
-                closeTapped()
+                closeFullscreen()
                 return
             }
         }
@@ -482,6 +491,7 @@ final class AcceleraFullscreenViewController: UIViewController {
     @objc private func handleHorizontalSwipe(_ gesture: UISwipeGestureRecognizer) {
         switch gesture.direction {
         case .left:
+            logCurrentCardClose()
             moveToNextEntry()
         case .right:
             moveToPrevEntry(fromTap: false)
@@ -491,9 +501,24 @@ final class AcceleraFullscreenViewController: UIViewController {
     }
 
     @objc private func closeTapped() {
+        logCurrentCardClose()
+        closeFullscreen()
+    }
+
+    private func closeFullscreen() {
         displayLink?.invalidate()
         displayLink = nil
         dismiss(animated: true)
+    }
+
+    private func logCurrentCardClose() {
+        guard
+            currentCards.indices.contains(currentCardIndex),
+            let card = currentCards[currentCardIndex]["card"] as? [String: Any]
+        else {
+            return
+        }
+        Accelera.shared.logEvent(event: ["event": "close", "meta": card["meta"] ?? [:]].asData)
     }
 }
 

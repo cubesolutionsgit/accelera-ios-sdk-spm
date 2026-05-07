@@ -20,6 +20,14 @@ final class AcceleraUrlHandler: DivUrlHandler {
     }
 
     func handle(_ url: URL, sender: AnyObject?) {
+        handle(url, meta: jsonData.meta ?? [:])
+    }
+
+    func handle(_ url: URL, info: DivActionInfo, sender: AnyObject?) {
+        handle(url, meta: info.payload?["meta"] ?? info.payload ?? jsonData.meta ?? [:])
+    }
+
+    private func handle(_ url: URL, meta: Any) {
         Accelera.shared.log("Divkit action: \(url.absoluteString)")
         guard url.scheme == "div-action" else { return }
 
@@ -31,7 +39,7 @@ final class AcceleraUrlHandler: DivUrlHandler {
         let payload: [String: Any] = [
             "event": actionType,
             "params": actionParams,
-            "meta": jsonData.meta ?? [:]
+            "meta": meta
         ]
         
         Accelera.shared.logEvent(event: payload.asData)

@@ -115,7 +115,10 @@ extension Accelera {
                         self.logEvent(event: ["event": "view", "meta": jsonData.meta].asData)
                         
                         if jsonData.closable == true {
-                            let closeButton = CloseButtonView(target: self, action: #selector(self.handleClose))
+                            let closeButton = CloseButtonView { [weak self, weak divView] in
+                                self?.logEvent(event: ["event": "close", "meta": jsonData.meta].asData)
+                                divView?.removeFromSuperview()
+                            }
                             
                             divView.addSubview(closeButton)
                             divView.bringSubviewToFront(closeButton)
@@ -129,11 +132,6 @@ extension Accelera {
                 }
             }
         }
-    }
-    
-    @objc private func handleClose(_ sender: UIButton) {
-        guard let divView = sender.superview else { return }
-        divView.removeFromSuperview()
     }
 }
 

@@ -11,15 +11,28 @@ import UIKit
 
 final class CloseButtonView: UIButton {
 
+    private var onTap: (() -> Void)?
+
     init(target: Any?, action: Selector) {
         super.init(frame: .zero)
         configure()
         addTarget(target, action: action, for: .touchUpInside)
     }
 
+    init(onTap: @escaping () -> Void) {
+        self.onTap = onTap
+        super.init(frame: .zero)
+        configure()
+        addTarget(self, action: #selector(handleTap), for: .touchUpInside)
+    }
+
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         configure()
+    }
+
+    @objc private func handleTap() {
+        onTap?()
     }
 
     private func configure() {
