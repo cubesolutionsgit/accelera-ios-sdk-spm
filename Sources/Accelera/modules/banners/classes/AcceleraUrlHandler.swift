@@ -54,12 +54,11 @@ final class AcceleraUrlHandler: DivUrlHandler {
                 jsonData: jsonData,
                 entryId: id,
             )
-            vc.modalPresentationStyle = .fullScreen
+            vc.modalPresentationStyle = .overFullScreen
             hostVC?.present(vc, animated: true)
             
         case "link":
-            if let range = url.absoluteString.range(of: "url=") {
-                let encodedValue = String(url.absoluteString[range.upperBound...])
+            if let encodedValue = actionParams["url"] {
                 let decoded = encodedValue.removingPercentEncoding ?? encodedValue
                 if let finalURL = URL(string: decoded) {
                     Accelera.shared.handle(url: finalURL)

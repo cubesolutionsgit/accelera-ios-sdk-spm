@@ -23,7 +23,7 @@ final class AcceleraFullscreenViewController: UIViewController {
     private var entryIds: [String] = []
     
     private var currentEntryIndex: Int = 0
-    private var currentEntryId: String
+    private var currentEntryId: String?
     private var currentCards: [[String: Any]] = []
     private var currentCardIndex: Int = 0
 
@@ -35,11 +35,16 @@ final class AcceleraFullscreenViewController: UIViewController {
     private var isPaused: Bool = false
     private var pauseTime: CFTimeInterval = 0
     private var isTransitioning: Bool = false
+    private lazy var plainCard: [String: Any]? = {
+        let root = (try? JSONSerialization.jsonObject(with: jsonData)) as? [String: Any]
+        return root?["card"] as? [String: Any]
+    }()
 
-    init(jsonData: Data, entryId: String) {
+    init(jsonData: Data, entryId: String? = nil) {
         self.jsonData = jsonData
         self.currentEntryId = entryId
         super.init(nibName: nil, bundle: nil)
+        modalTransitionStyle = entryId == nil ? .crossDissolve : .coverVertical
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -47,15 +52,19 @@ final class AcceleraFullscreenViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        view.backgroundColor = .black
+        view.backgroundColor = currentEntryId == nil ? .clear : .black
+        view.isOpaque = currentEntryId != nil
         
         setupDivView()
-        setupCloseButton()
-        loadEntryIds()
-        
-        loadEntry(id: currentEntryId)
-        
-        setupTapZones(multipleEntries: entryIds.count > 1 || currentCards.count > 1)
+
+        if let currentEntryId {
+            loadEntryIds()
+            loadEntry(id: currentEntryId)
+            setupTapZones(multipleEntries: entryIds.count > 1 || currentCards.count > 1)
+        } else {
+            updateCloseButtonVisibility()
+            showPlainCard()
+        }
     }
 
     override func viewDidLayoutSubviews() {
@@ -72,6 +81,8 @@ final class AcceleraFullscreenViewController: UIViewController {
         let context = DivKitSetup.makeView(from: jsonData, presentingViewController: self)
         divView = context.view
         divKitComponents = context.components
+        divView.backgroundColor = .clear
+        divView.isOpaque = false
         view.addSubview(divView)
         divView.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
@@ -86,6 +97,17 @@ final class AcceleraFullscreenViewController: UIViewController {
         divKitComponents?.safeAreaManager.setEdgeInsets(view.safeAreaInsets)
     }
 
+    private var currentCard: [String: Any]? {
+        if currentCards.indices.contains(currentCardIndex) {
+            return currentCards[currentCardIndex]["card"] as? [String: Any]
+        }
+        return plainCard
+    }
+
+    private var shouldShowCloseButton: Bool {
+        (currentCard?["closable"] as? Bool) != false
+    }
+
     private func setupCloseButton() {
         let button = CloseButtonView(target: self, action: #selector(closeTapped))
         view.addSubview(button)
@@ -94,6 +116,17 @@ final class AcceleraFullscreenViewController: UIViewController {
             button.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16)
         ])
         self.closeButton = button
+    }
+
+    private func updateCloseButtonVisibility() {
+        if shouldShowCloseButton {
+            if closeButton == nil {
+                setupCloseButton()
+            }
+            closeButton?.isHidden = false
+        } else {
+            closeButton?.isHidden = true
+        }
     }
 
     private func setupTapZones(multipleEntries: Bool = false) {
@@ -154,7 +187,7 @@ final class AcceleraFullscreenViewController: UIViewController {
         let root = (try? JSONSerialization.jsonObject(with: jsonData)) as? [String: Any]
         let fullscreens = root?["fullscreens"] as? [String: Any]
         self.entryIds = fullscreens?.keys.sorted() ?? []
-        self.currentEntryIndex = entryIds.firstIndex(of: currentEntryId) ?? 0
+        self.currentEntryIndex = entryIds.firstIndex(of: currentEntryId ?? "") ?? 0
     }
 
     private func loadEntry(id: String, lastCard: Bool = false) {
@@ -172,6 +205,7 @@ final class AcceleraFullscreenViewController: UIViewController {
         self.currentCards = cards
         
         currentCardIndex = lastCard ? cards.count - 1 : 0
+        updateCloseButtonVisibility()
         
         setupProgressBars()
         showCard(at: currentCardIndex)
@@ -231,6 +265,7 @@ final class AcceleraFullscreenViewController: UIViewController {
 
                 let restartIndex = 0
                 currentCardIndex = restartIndex
+                updateCloseButtonVisibility()
 
                 progressStack?.layoutIfNeeded()
                 for bar in progressBars {
@@ -241,11 +276,11 @@ final class AcceleraFullscreenViewController: UIViewController {
 
                 let source = DivViewSource(
                     kind: .data(data),
-                    cardId: DivCardID(rawValue: "card_\(currentEntryId)_\(restartIndex)_\(UUID().uuidString)")
+                    cardId: DivCardID(rawValue: "card_\(currentEntryId ?? "plain")_\(restartIndex)_\(UUID().uuidString)")
                 )
 
                 guard
-                    let card = currentCards[restartIndex]["card"] as? [String: Any]
+                    let card = currentCard
                 else {
                     return
                 }
@@ -282,6 +317,7 @@ final class AcceleraFullscreenViewController: UIViewController {
         displayLink = nil
 
         currentCardIndex = index
+        updateCloseButtonVisibility()
 
         progressStack?.layoutIfNeeded()
         
@@ -293,10 +329,10 @@ final class AcceleraFullscreenViewController: UIViewController {
 
         let source = DivViewSource(
             kind: .data(data),
-            cardId: DivCardID(rawValue: "card_\(currentEntryId)_\(index)")
+            cardId: DivCardID(rawValue: "card_\(currentEntryId ?? "plain")_\(index)")
         )
 
-        guard let card = currentCards[index]["card"] as? [String: Any] else {
+        guard let card = currentCard else {
             return
         }
 
@@ -319,6 +355,18 @@ final class AcceleraFullscreenViewController: UIViewController {
         stateStartTime = CACurrentMediaTime()
         displayLink = CADisplayLink(target: self, selector: #selector(updateProgress))
         displayLink?.add(to: .main, forMode: .common)
+    }
+
+    private func showPlainCard() {
+        let source = DivViewSource(
+            kind: .data(jsonData),
+            cardId: DivCardID(rawValue: "popup_\(UUID().uuidString)")
+        )
+
+        Task {
+            await divView.setSource(source)
+            Accelera.shared.logEvent(event: ["event": "view", "meta": currentCard?["meta"] ?? [:]].asData)
+        }
     }
     
     @objc private func updateProgress() {
@@ -512,10 +560,7 @@ final class AcceleraFullscreenViewController: UIViewController {
     }
 
     private func logCurrentCardClose() {
-        guard
-            currentCards.indices.contains(currentCardIndex),
-            let card = currentCards[currentCardIndex]["card"] as? [String: Any]
-        else {
+        guard let card = currentCard else {
             return
         }
         Accelera.shared.logEvent(event: ["event": "close", "meta": card["meta"] ?? [:]].asData)
