@@ -119,6 +119,27 @@ Accelera.shared.attachContentPlaceholder(
 )
 ```
 
+Если удобно хранить ссылку на конкретный placeholder, сохраните handle:
+
+```swift
+let bannerHandle = Accelera.shared.attachContentPlaceholder(
+    to: bannerPlaceholder,
+    with: ["type": "banner"].asData
+)
+
+bannerHandle.refresh()
+bannerHandle.detach()
+```
+
+Если handle хранить не хочется, можно управлять контентом через container:
+
+```swift
+Accelera.shared.refreshContentPlaceholder(in: bannerPlaceholder)
+Accelera.shared.detachContentPlaceholder(from: bannerPlaceholder)
+```
+
+`refresh` повторно загружает контент с теми же параметрами, `detach` убирает контент из контейнера.
+
 ### ℹ️ Параметры метода `attachContentPlaceholder`
 
 | Параметр | Тип    | Описание                                                             |

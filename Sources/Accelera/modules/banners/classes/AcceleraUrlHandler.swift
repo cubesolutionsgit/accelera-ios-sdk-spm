@@ -12,29 +12,32 @@ import DivKit
 
 final class AcceleraUrlHandler: DivUrlHandler {
     private weak var hostVC: UIViewController?
+    private weak var originContext: AcceleraAttachedContentContext?
     private let jsonData: Data
 
-    init(presentingViewController: UIViewController, jsonData: Data) {
+    init(presentingViewController: UIViewController, jsonData: Data, originContext: AcceleraAttachedContentContext? = nil) {
         self.hostVC = presentingViewController
         self.jsonData = jsonData
+        self.originContext = originContext
     }
 
     func handle(_ url: URL, sender: AnyObject?) {
-        handle(url, meta: jsonData.meta ?? [:])
+        handle(url, meta: jsonData.meta ?? [:], sourceCardId: nil)
     }
 
     func handle(_ url: URL, info: DivActionInfo, sender: AnyObject?) {
-        handle(url, meta: info.payload?["meta"] ?? info.payload ?? jsonData.meta ?? [:])
+        let meta = (hostVC as? AcceleraFullscreenViewController)?.currentMeta() ?? jsonData.meta ?? [:]
+        handle(url, meta: meta, sourceCardId: info.cardId)
     }
 
-    private func handle(_ url: URL, meta: Any) {
+    private func handle(_ url: URL, meta: Any, sourceCardId: DivCardID?) {
         Accelera.shared.log("Divkit action: \(url.absoluteString)")
         guard url.scheme == "div-action" else { return }
 
         let actionType = url.host ?? ""
-        let actionParams: [String: String] = URLComponents(url: url, resolvingAgainstBaseURL: false)?
-            .queryItems?
-            .reduce(into: [:]) { $0[$1.name] = $1.value } ?? [:]
+        let queryItems = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        let actionParams: [String: String] = queryItems
+            .reduce(into: [:]) { $0[$1.name] = $1.value }
         
         let payload: [String: Any] = [
             "event": actionType,
@@ -42,7 +45,9 @@ final class AcceleraUrlHandler: DivUrlHandler {
             "meta": meta
         ]
         
-        Accelera.shared.logEvent(event: payload.asData)
+        if !queryItems.contains(where: { $0.name == "ignore" }) {
+            Accelera.shared.logEvent(event: payload.asData)
+        }
         
         switch actionType {
         case "fullscreen":
@@ -53,6 +58,8 @@ final class AcceleraUrlHandler: DivUrlHandler {
             let vc = AcceleraFullscreenViewController(
                 jsonData: jsonData,
                 entryId: id,
+                originContext: originContext,
+                sourceCardId: sourceCardId
             )
             vc.modalPresentationStyle = .overFullScreen
             hostVC?.present(vc, animated: true)
@@ -70,7 +77,14 @@ final class AcceleraUrlHandler: DivUrlHandler {
             }
             
         case "close":
-            hostVC?.dismiss(animated: true)
+            if hostVC is AcceleraFullscreenViewController {
+                hostVC?.dismiss(animated: true)
+            } else {
+                originContext?.remove()
+            }
+
+        case "refresh":
+            originContext?.load()
             
         default:
             break

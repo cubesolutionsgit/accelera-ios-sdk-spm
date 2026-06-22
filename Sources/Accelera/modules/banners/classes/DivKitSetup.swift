@@ -18,11 +18,15 @@ final class DivKitSetup {
 
     static func makeView(
         from jsonData: Data,
-        presentingViewController: UIViewController
+        presentingViewController: UIViewController,
+        originContext: AcceleraAttachedContentContext? = nil,
+        variablesStorage: DivVariablesStorage? = nil
     ) -> (view: DivView, components: DivKitComponents) {
         let components = makeComponents(
             presentingViewController: presentingViewController,
-            jsonData: jsonData
+            jsonData: jsonData,
+            originContext: originContext,
+            variablesStorage: variablesStorage
         )
 
         let divView = DivView(divKitComponents: components)
@@ -32,7 +36,9 @@ final class DivKitSetup {
 
     private static func makeComponents(
         presentingViewController: UIViewController,
-        jsonData: Data
+        jsonData: Data,
+        originContext: AcceleraAttachedContentContext?,
+        variablesStorage: DivVariablesStorage?
     ) -> DivKitComponents {
         let requestPerformer = URLRequestPerformer(urlTransform: nil)
         let requester = NetworkURLResourceRequester(performer: requestPerformer)
@@ -49,14 +55,16 @@ final class DivKitSetup {
 
         let urlHandler = AcceleraUrlHandler(
             presentingViewController: presentingViewController,
-            jsonData: jsonData
+            jsonData: jsonData,
+            originContext: originContext
         )
 
         return DivKitComponents(
             extensionHandlers: [lottieHandler],
             fontProvider: CustomFontProvider(),
             imageHolderFactory: imageHolderFactory,
-            urlHandler: urlHandler
+            urlHandler: urlHandler,
+            variablesStorage: variablesStorage ?? DivVariablesStorage()
         )
     }
 

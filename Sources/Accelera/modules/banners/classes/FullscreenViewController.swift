@@ -15,6 +15,8 @@ import AVFoundation
 final class AcceleraFullscreenViewController: UIViewController {
 
     private let jsonData: Data
+    private weak var originContext: AcceleraAttachedContentContext?
+    private let sourceCardId: DivCardID?
 
     private var divView: DivView!
     private var divKitComponents: DivKitComponents?
@@ -40,9 +42,11 @@ final class AcceleraFullscreenViewController: UIViewController {
         return root?["card"] as? [String: Any]
     }()
 
-    init(jsonData: Data, entryId: String? = nil) {
+    init(jsonData: Data, entryId: String? = nil, originContext: AcceleraAttachedContentContext? = nil, sourceCardId: DivCardID? = nil) {
         self.jsonData = jsonData
         self.currentEntryId = entryId
+        self.originContext = originContext
+        self.sourceCardId = sourceCardId
         super.init(nibName: nil, bundle: nil)
         modalTransitionStyle = entryId == nil ? .crossDissolve : .coverVertical
     }
@@ -78,7 +82,12 @@ final class AcceleraFullscreenViewController: UIViewController {
     }
 
     private func setupDivView() {
-        let context = DivKitSetup.makeView(from: jsonData, presentingViewController: self)
+        let context = DivKitSetup.makeView(
+            from: jsonData,
+            presentingViewController: self,
+            originContext: originContext,
+            variablesStorage: originContext?.sharedVariablesStorage()
+        )
         divView = context.view
         divKitComponents = context.components
         divView.backgroundColor = .clear
@@ -102,6 +111,14 @@ final class AcceleraFullscreenViewController: UIViewController {
             return currentCards[currentCardIndex]["card"] as? [String: Any]
         }
         return plainCard
+    }
+
+    func currentMeta() -> Any? {
+        currentCard?["meta"]
+    }
+
+    private func divKitCardId(for index: Int) -> DivCardID {
+        sourceCardId ?? DivCardID(rawValue: "\(currentEntryId ?? "plain")_\(index)")
     }
 
     private var shouldShowCloseButton: Bool {
@@ -274,10 +291,8 @@ final class AcceleraFullscreenViewController: UIViewController {
 
                 guard let data = try? JSONSerialization.data(withJSONObject: currentCards[restartIndex]) else { return }
 
-                let source = DivViewSource(
-                    kind: .data(data),
-                    cardId: DivCardID(rawValue: "card_\(currentEntryId ?? "plain")_\(restartIndex)_\(UUID().uuidString)")
-                )
+                let cardId = divKitCardId(for: restartIndex)
+                let source = DivViewSource(kind: .data(data), cardId: cardId)
 
                 guard
                     let card = currentCard
@@ -327,10 +342,8 @@ final class AcceleraFullscreenViewController: UIViewController {
 
         guard let data = try? JSONSerialization.data(withJSONObject: currentCards[index]) else { return }
 
-        let source = DivViewSource(
-            kind: .data(data),
-            cardId: DivCardID(rawValue: "card_\(currentEntryId ?? "plain")_\(index)")
-        )
+        let cardId = divKitCardId(for: index)
+        let source = DivViewSource(kind: .data(data), cardId: cardId)
 
         guard let card = currentCard else {
             return
@@ -368,7 +381,7 @@ final class AcceleraFullscreenViewController: UIViewController {
             Accelera.shared.logEvent(event: ["event": "view", "meta": currentCard?["meta"] ?? [:]].asData)
         }
     }
-    
+
     @objc private func updateProgress() {
         let elapsed = CACurrentMediaTime() - stateStartTime
         let progress = CGFloat(min(max(elapsed / stateDuration, 0), 1))
@@ -387,7 +400,7 @@ final class AcceleraFullscreenViewController: UIViewController {
     }
 
     @objc private func nextCardTapped() {
-        logCurrentCardClose()
+        logCurrentCardDismissByUser()
         nextCard()
     }
 
@@ -539,7 +552,7 @@ final class AcceleraFullscreenViewController: UIViewController {
     @objc private func handleHorizontalSwipe(_ gesture: UISwipeGestureRecognizer) {
         switch gesture.direction {
         case .left:
-            logCurrentCardClose()
+            logCurrentCardDismissByUser()
             moveToNextEntry()
         case .right:
             moveToPrevEntry(fromTap: false)
@@ -549,7 +562,7 @@ final class AcceleraFullscreenViewController: UIViewController {
     }
 
     @objc private func closeTapped() {
-        logCurrentCardClose()
+        logCurrentCardDismissByUser()
         closeFullscreen()
     }
 
@@ -559,7 +572,7 @@ final class AcceleraFullscreenViewController: UIViewController {
         dismiss(animated: true)
     }
 
-    private func logCurrentCardClose() {
+    private func logCurrentCardDismissByUser() {
         guard let card = currentCard else {
             return
         }
