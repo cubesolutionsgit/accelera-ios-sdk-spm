@@ -53,17 +53,12 @@ public final class WebClient {
         var request = URLRequest(baseUrl: baseUrl, path: path, method: method, body: body, headers: headers)
 
         let task = session.dataTask(with: request) { data, response, error in
-            let networkError = NetworkError.fromResponse(data: data, response: response, error: error)
-
-            if case .server = networkError,
+            if error == nil,
                let httpResponse = response as? HTTPURLResponse,
                (200..<300).contains(httpResponse.statusCode) {
-                completion(data, nil)
-            } else if error == nil,
-                      let httpResponse = response as? HTTPURLResponse,
-                      (200..<300).contains(httpResponse.statusCode) {
-                completion(data, nil)
+                completion(httpResponse.statusCode == 204 ? nil : data, nil)
             } else {
+                let networkError = NetworkError.fromResponse(data: data, response: response, error: error)
                 completion(nil, networkError)
             }
         }

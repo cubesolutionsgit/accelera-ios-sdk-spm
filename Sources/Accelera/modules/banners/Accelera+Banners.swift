@@ -113,9 +113,9 @@ extension Accelera {
                 return
             }
 
-            guard let jsonData = result else {
+            guard let jsonData = result, !jsonData.isEmpty else {
                 DispatchQueue.main.async {
-                    self.error("Empty content JSON data from API")
+                    self.log("No content data from API")
                     onComplete()
                 }
                 return
