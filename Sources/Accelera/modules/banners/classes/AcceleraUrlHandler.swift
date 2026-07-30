@@ -77,8 +77,8 @@ final class AcceleraUrlHandler: DivUrlHandler {
             }
             
         case "close":
-            if hostVC is AcceleraFullscreenViewController {
-                hostVC?.dismiss(animated: true)
+            if let fullscreenVC = hostVC as? AcceleraFullscreenViewController {
+                fullscreenVC.closeFullscreen()
             } else {
                 originContext?.remove()
             }

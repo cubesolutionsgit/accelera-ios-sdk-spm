@@ -566,7 +566,7 @@ final class AcceleraFullscreenViewController: UIViewController {
         closeFullscreen()
     }
 
-    private func closeFullscreen() {
+    func closeFullscreen() {
         displayLink?.invalidate()
         displayLink = nil
         dismiss(animated: true)
