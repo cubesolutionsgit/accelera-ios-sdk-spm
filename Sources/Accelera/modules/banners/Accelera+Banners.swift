@@ -166,6 +166,7 @@ final class AcceleraAttachedContentContext: NSObject {
     private weak var container: UIView?
     private let data: Data?
     private var divView: DivView?
+    private var divKitViewContext: DivKitViewContext?
     private var divKitComponents: DivKitComponents?
     private let variablesStorage = DivVariablesStorage()
     private var cardId: DivCardID?
@@ -201,6 +202,10 @@ final class AcceleraAttachedContentContext: NSObject {
             let oldDivView = self.divView
             let viewContext = DivKitSetup.makeView(from: jsonData, presentingViewController: hostVC, originContext: self, variablesStorage: variablesStorage)
             let divView = viewContext.view
+            viewContext.observeSizeChanges { [weak self] in
+                (self?.container as? AcceleraContentSizeInvalidating)?
+                    .acceleraContentSizeDidChange()
+            }
             container.addSubview(divView)
             NSLayoutConstraint.activate([
                 divView.topAnchor.constraint(equalTo: container.topAnchor),
@@ -217,6 +222,7 @@ final class AcceleraAttachedContentContext: NSObject {
                 await divView.setSource(source)
                 oldDivView?.removeFromSuperview()
                 self.divView = divView
+                self.divKitViewContext = viewContext
                 self.divKitComponents = viewContext.components
                 self.cardId = cardId
                 self.jsonData = jsonData
@@ -244,7 +250,10 @@ final class AcceleraAttachedContentContext: NSObject {
     func remove() {
         divView?.removeFromSuperview()
         divView = nil
+        divKitViewContext = nil
         jsonData = nil
+        (container as? AcceleraContentSizeInvalidating)?
+            .acceleraContentSizeDidChange()
         if let container {
             acceleraContentContexts.removeObject(forKey: container)
         }

@@ -14,6 +14,24 @@ import Lottie
 import LayoutKit
 import VGSL
 
+final class DivKitViewContext {
+    let view: DivView
+    let components: DivKitComponents
+
+    private var sizeObservation: Disposable?
+
+    init(view: DivView, components: DivKitComponents) {
+        self.view = view
+        self.components = components
+    }
+
+    func observeSizeChanges(_ onSizeChanged: @escaping () -> Void) {
+        sizeObservation = view.addObserver { _ in
+            onSizeChanged()
+        }
+    }
+}
+
 final class DivKitSetup {
 
     static func makeView(
@@ -21,7 +39,7 @@ final class DivKitSetup {
         presentingViewController: UIViewController,
         originContext: AcceleraAttachedContentContext? = nil,
         variablesStorage: DivVariablesStorage? = nil
-    ) -> (view: DivView, components: DivKitComponents) {
+    ) -> DivKitViewContext {
         let components = makeComponents(
             presentingViewController: presentingViewController,
             jsonData: jsonData,
@@ -31,7 +49,7 @@ final class DivKitSetup {
 
         let divView = DivView(divKitComponents: components)
         divView.translatesAutoresizingMaskIntoConstraints = false
-        return (divView, components)
+        return DivKitViewContext(view: divView, components: components)
     }
 
     private static func makeComponents(

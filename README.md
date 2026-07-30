@@ -140,6 +140,54 @@ Accelera.shared.detachContentPlaceholder(from: bannerPlaceholder)
 
 `refresh` повторно загружает контент с теми же параметрами, `detach` убирает контент из контейнера.
 
+### SwiftUI
+
+В SwiftUI можно использовать `AcceleraAutoHeightPlaceholderWrapper`, чтобы высота `UIView`-placeholder автоматически синхронизировалась с высотой загруженного контента и уменьшалась до `0`, когда контент исчезает.
+
+```swift
+import SwiftUI
+import UIKit
+import Accelera // Для продукта Accelera
+// import AcceleraBanners // Для продукта AcceleraBanners
+
+struct HomeView: View {
+    @State private var bannerPlaceholder: UIView?
+    @State private var isBannerVisible = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            AcceleraAutoHeightPlaceholderWrapper(
+                onVisibilityChanged: { isBannerVisible = $0 }
+            ) { placeholder in
+                bannerPlaceholder = placeholder
+
+                Accelera.shared.attachContentPlaceholder(
+                    to: placeholder,
+                    with: ["type": "banner"].asData
+                )
+            }
+            .padding(.vertical, isBannerVisible ? 16 : 0)
+
+            MainContentView()
+        }
+    }
+
+    private func refreshBanner() {
+        guard let bannerPlaceholder else { return }
+        Accelera.shared.refreshContentPlaceholder(in: bannerPlaceholder)
+    }
+
+    private func detachBanner() {
+        guard let bannerPlaceholder else { return }
+        Accelera.shared.detachContentPlaceholder(from: bannerPlaceholder)
+    }
+}
+```
+
+`refreshContentPlaceholder` повторно загружает баннер с теми же параметрами, `detachContentPlaceholder` убирает его из контейнера.
+
+Необязательный `onVisibilityChanged` позволяет добавлять внешние отступы только тогда, когда высота контента больше `0`. Сам placeholder остаётся в иерархии и доступен для повторной загрузки.
+
 ### ℹ️ Параметры метода `attachContentPlaceholder`
 
 | Параметр | Тип    | Описание                                                             |
