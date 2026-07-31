@@ -10,7 +10,7 @@
    ```
    https://github.com/cubesolutionsgit/accelera-ios-sdk-spm.git
    ```
-4. Выберите версию `0.6.0`
+4. Выберите версию `0.6.2`
 5. **Важно:** выберите **только один продукт** из списка:
 
 | Продукт               | Описание                                |
@@ -279,7 +279,7 @@ Accelera.shared.setUserInfo(
 
 ---
 
-📄 Версия: `0.6.0`
-📆 Обновлено: июнь 2026
+📄 Версия: `0.6.2`
+📆 Обновлено: июль 2026
 📫 Поддержка: [@cubesolutions](https://github.com/cubesolutionsgit)  
 📚 Полная документация по методам доступна по [ссылке](https://cubesolutionsgit.github.io/accelera-ios-sdk-spm/documentation/accelera)
