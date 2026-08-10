@@ -20,18 +20,16 @@ public final class Accelera: NSObject {
 
     var config: AcceleraConfig?
     
+    private static let maxBufferedLogCount = 200
     private var _log = [String]()
-    let queue = DispatchQueue(label: "ai.accelera.ios", qos: .background)
 
-    private var _delegate: AcceleraDelegate?
     /// Sets delegate for library events. See ``AcceleraDelegate``
     weak public var delegate: AcceleraDelegate? {
-        get { _delegate }
-        set {
-            _delegate = newValue
-            // Push buffered logs if delegate was set later
-            for msg in _log {
-                _delegate?.log(msg)
+        didSet {
+            runOnMain { [weak self, weak delegate] in
+                guard let self, let delegate else { return }
+                _log.forEach { delegate.log($0) }
+                _log.removeAll(keepingCapacity: true)
             }
         }
     }
@@ -86,7 +84,9 @@ public final class Accelera: NSObject {
            let eventName = json["event"] as? String {
             let params = json["params"] as? [String: String] ?? [:]
             let meta = json["meta"]
-            delegate?.action(action: eventName, params: params, meta: meta)
+            runOnMain { [weak self] in
+                self?.delegate?.action(action: eventName, params: params, meta: meta)
+            }
         }
         
         if let jsonString = String(data: data, encoding: .utf8) {
@@ -105,20 +105,34 @@ public final class Accelera: NSObject {
     }
     
     func log(_ message: Any) {
-        let msg = "[Accelera] \(message)"
-        _log.append(msg)
-        delegate?.log(msg)
+        emit("[Accelera] \(message)", isError: false)
     }
     
     func error(_ error: Any) {
-        let msg = "[Accelera] Error: \(error)"
-        _log.append(msg)
-        delegate?.error(msg)
+        emit("[Accelera] Error: \(error)", isError: true)
     }
     
     func handle(url: URL) {
         log("Handling URL: \(url)")
-        delegate?.handle(url: url)
+        runOnMain { [weak self] in self?.delegate?.handle(url: url) }
+    }
+
+    private func emit(_ message: String, isError: Bool) {
+        runOnMain { [weak self] in
+            guard let self else { return }
+            if let delegate {
+                isError ? delegate.error(message) : delegate.log(message)
+                return
+            }
+            if _log.count >= Self.maxBufferedLogCount {
+                _log.removeFirst()
+            }
+            _log.append(message)
+        }
+    }
+
+    private func runOnMain(_ action: @escaping () -> Void) {
+        Thread.isMainThread ? action() : DispatchQueue.main.async(execute: action)
     }
 
     var api: AcceleraAPIProtocol {

@@ -8,6 +8,7 @@
 import UIKit
 
 /// Delegate protocol for handling events, actions, logging, and custom API override from Accelera.
+/// Event methods are delivered on the main thread.
 public protocol AcceleraDelegate: AnyObject {
     
     /// Called when the library wants to log a message.
