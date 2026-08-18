@@ -20,6 +20,7 @@ Package.resolved
 DerivedData/
 .idea/
 .vscode/
+.codex/
 
 # Carthage (если вдруг был)
 Carthage/
