@@ -82,10 +82,18 @@ extension Accelera {
     ///   - presentingViewController: The view controller that should present the popup.
     ///   - data: Optional request parameters to be sent to the backend.
     public func showPopup(from presentingViewController: UIViewController?, data: Data? = nil) {
-        loadPreparedContent(data: data) { [weak self] jsonData in
+        let sourceVC = UIApplication.shared.acceleraTopMostViewController()
+        guard let hostVC = presentingViewController ?? sourceVC else {
+            error("No view controller to present popup from.")
+            return
+        }
+
+        loadPreparedContent(data: data) { [weak self, weak sourceVC, weak hostVC] jsonData in
             guard let self else { return }
-            guard let hostVC = presentingViewController ?? UIApplication.shared.acceleraTopMostViewController() else {
-                self.error("No view controller to present popup from.")
+            guard let sourceVC,
+                  let hostVC,
+                  UIApplication.shared.acceleraTopMostViewController() === sourceVC else {
+                self.log("Popup skipped because presenting screen is no longer active")
                 return
             }
 
