@@ -39,9 +39,9 @@ public protocol AcceleraAPIProtocol: AnyObject {
     /// Logs push notification related events to backend.
     /// Only available if notifications module is installed.
     /// - Parameters:
-    ///   - data: JSON payload containing Firebase-related info.
+    ///   - data: JSON payload containing push event info.
     ///   - completion: Completion handler with response data or error.
-    func logFirebaseEvent(
+    func logPushEvent(
         data: Data?,
         completion: @escaping (Data?, NetworkError?) -> Void
     ) -> URLSessionDataTask?

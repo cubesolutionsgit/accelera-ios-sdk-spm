@@ -11,7 +11,6 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/divkit/divkit-ios.git", from: "32.0.0"),
-        .package(url: "https://github.com/firebase/firebase-ios-sdk.git", from: "11.7.0"),
         .package(url: "https://github.com/airbnb/lottie-spm.git", from: "4.5.0")
     ],
     targets: [
@@ -20,8 +19,7 @@ let package = Package(
             dependencies: [
                     .product(name: "DivKit", package: "divkit-ios"),
                     .product(name: "DivKitExtensions", package: "divkit-ios"),
-                    .product(name: "Lottie", package: "lottie-spm"),
-                    .product(name: "FirebaseMessaging", package: "firebase-ios-sdk")
+                    .product(name: "Lottie", package: "lottie-spm")
                 ],
                 path: "Sources/Modules/all",
                 swiftSettings: [
@@ -43,9 +41,7 @@ let package = Package(
         ),
         .target(
             name: "AcceleraNotifications",
-            dependencies: [
-                .product(name: "FirebaseMessaging", package: "firebase-ios-sdk")
-            ],
+            dependencies: [],
             path: "Sources/Modules/notifications",
             swiftSettings: [
                 .define("ACCELERA_NOTIFICATIONS_ENABLED")
