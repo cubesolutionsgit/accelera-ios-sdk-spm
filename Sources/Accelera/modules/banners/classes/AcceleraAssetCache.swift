@@ -36,15 +36,21 @@ enum AcceleraAssetCache {
             let total = blocking.count
             var completed = 0
 
-            for (remote, _) in blocking {
-                try await ensureCached(remote: remote)
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                for remote in blocking.keys {
+                    group.addTask {
+                        try await ensureCached(remote: remote)
+                    }
+                }
 
-                completed += 1
+                for try await _ in group {
+                    completed += 1
 
-                if let progress = progress {
-                    let value = Double(completed) / Double(total)
-                    await MainActor.run {
-                        progress(value)
+                    if let progress = progress {
+                        let value = Double(completed) / Double(total)
+                        await MainActor.run {
+                            progress(value)
+                        }
                     }
                 }
             }
