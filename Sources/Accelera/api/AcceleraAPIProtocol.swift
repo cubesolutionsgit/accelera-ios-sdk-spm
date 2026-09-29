@@ -12,6 +12,7 @@ import Foundation
 public protocol AcceleraAPIProtocol: AnyObject {
 
     /// Sends user event analytics to backend.
+    /// Implement only when a custom API handles user events.
     /// - Parameters:
     ///   - data: JSON data of the event.
     ///   - completion: Completion handler with response data or error.
@@ -23,7 +24,7 @@ public protocol AcceleraAPIProtocol: AnyObject {
     #if ACCELERA_BANNERS_ENABLED
 
     /// Loads remote banner configuration or data from backend.
-    /// Only available if banners modules is installed.
+    /// Implement only when a custom API handles banner content.
     /// - Parameters:
     ///   - data: Optional JSON payload to send with the request.
     ///   - completion: Completion handler with response data or error.
@@ -37,7 +38,7 @@ public protocol AcceleraAPIProtocol: AnyObject {
     #if ACCELERA_NOTIFICATIONS_ENABLED
 
     /// Logs push notification related events to backend.
-    /// Only available if notifications module is installed.
+    /// Implement only when a custom API handles push events.
     /// - Parameters:
     ///   - data: JSON payload containing push event info.
     ///   - completion: Completion handler with response data or error.
@@ -48,3 +49,45 @@ public protocol AcceleraAPIProtocol: AnyObject {
 
     #endif
 }
+
+public extension AcceleraAPIProtocol {
+    @discardableResult
+    func logEvent(
+        data: Data?,
+        completion: @escaping (Data?, NetworkError?) -> Void
+    ) -> URLSessionDataTask? {
+        completion(nil, .server(status: 501, message: "User event logging is not implemented"))
+        return nil
+    }
+}
+
+#if ACCELERA_BANNERS_ENABLED
+
+public extension AcceleraAPIProtocol {
+    @discardableResult
+    func loadBanner(
+        data: Data?,
+        completion: @escaping (Data?, NetworkError?) -> Void
+    ) -> URLSessionDataTask? {
+        completion(nil, .server(status: 501, message: "Banner loading is not implemented"))
+        return nil
+    }
+}
+
+#endif
+
+#if ACCELERA_NOTIFICATIONS_ENABLED
+
+public extension AcceleraAPIProtocol {
+    /// Allows custom APIs without push support to omit this method.
+    @discardableResult
+    func logPushEvent(
+        data: Data?,
+        completion: @escaping (Data?, NetworkError?) -> Void
+    ) -> URLSessionDataTask? {
+        completion(nil, .server(status: 501, message: "Push event logging is not implemented"))
+        return nil
+    }
+}
+
+#endif
