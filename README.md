@@ -17,7 +17,7 @@
 |------------------------|-----------------------------------------|
 | `Accelera`             | Всё сразу: контент + уведомления        |
 | `AcceleraBanners`      | Баннеры, сторис и попапы                |
-| `AcceleraNotifications`| Только пуш-уведомления (Firebase)       |
+| `AcceleraNotifications`| События push-уведомлений                |
 
 ## ⚙️ Конфигурация
 
@@ -58,6 +58,35 @@ extension MyViewController: AcceleraAPIProtocol {
 ```
 
 > ☝️ Все методы взаимодействия с сервером — **POST**.
+
+## 🔔 Push-уведомления
+
+Для push-уведомлений приложение настраивает Firebase Cloud Messaging самостоятельно и передаёт FCM-токен в Accelera. Сам SDK Firebase не подключает.
+
+### Firebase Cloud Messaging
+
+```swift
+import Accelera
+import FirebaseCore
+import FirebaseMessaging
+
+FirebaseApp.configure()
+Messaging.messaging().delegate = self
+```
+
+```swift
+extension AppDelegate: MessagingDelegate {
+    func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+        Accelera.shared.setPushToken(fcmToken, provider: "firebase")
+    }
+}
+```
+
+При открытии push-уведомления передайте payload в SDK:
+
+```swift
+Accelera.shared.handlePushNotificationOpened(userInfo: userInfo)
+```
 
 ## 📐 Размещение баннеров и сторис
 
