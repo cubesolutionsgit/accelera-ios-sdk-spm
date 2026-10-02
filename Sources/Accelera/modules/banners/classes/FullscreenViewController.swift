@@ -11,6 +11,7 @@ import UIKit
 import DivKit
 import Lottie
 import AVFoundation
+import Yams
 
 final class AcceleraFullscreenViewController: UIViewController {
 
@@ -22,7 +23,7 @@ final class AcceleraFullscreenViewController: UIViewController {
     private var divKitComponents: DivKitComponents?
     private var closeButton: UIButton?
 
-    private var entryIds: [String] = []
+    private let stories: [(id: String, cards: [[String: Any]])]
     
     private var currentEntryIndex: Int = 0
     private var currentEntryId: String?
@@ -44,11 +45,27 @@ final class AcceleraFullscreenViewController: UIViewController {
 
     init(jsonData: Data, entryId: String? = nil, originContext: AcceleraAttachedContentContext? = nil, sourceCardId: DivCardID? = nil) {
         self.jsonData = jsonData
-        self.currentEntryId = entryId
+        let root = (try? JSONSerialization.jsonObject(with: jsonData)) as? [String: Any]
+        let fullscreens = root?["fullscreens"] as? [String: Any]
+        let parsedStories: [(id: String, cards: [[String: Any]])]
+        if let text = String(data: jsonData, encoding: .utf8),
+           let node = try? Yams.compose(yaml: text),
+           let mapping = node["fullscreens"]?.mapping {
+            parsedStories = mapping.keys.compactMap { key in
+                guard let id = key.string,
+                      let entry = fullscreens?[id] as? [String: Any],
+                      let cards = entry["cards"] as? [[String: Any]] else { return nil }
+                return (id: id, cards: cards)
+            }
+        } else {
+            parsedStories = []
+        }
+        self.stories = parsedStories
+        self.currentEntryId = entryId ?? (root?["card"] == nil ? parsedStories.first?.id : nil)
         self.originContext = originContext
         self.sourceCardId = sourceCardId
         super.init(nibName: nil, bundle: nil)
-        modalTransitionStyle = entryId == nil ? .crossDissolve : .coverVertical
+        modalTransitionStyle = currentEntryId == nil ? .crossDissolve : .coverVertical
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -62,9 +79,9 @@ final class AcceleraFullscreenViewController: UIViewController {
         setupDivView()
 
         if let currentEntryId {
-            loadEntryIds()
+            currentEntryIndex = stories.firstIndex { $0.id == currentEntryId } ?? 0
             loadEntry(id: currentEntryId)
-            setupTapZones(multipleEntries: entryIds.count > 1 || currentCards.count > 1)
+            setupTapZones(multipleEntries: stories.count > 1 || currentCards.count > 1)
         } else {
             updateCloseButtonVisibility()
             showPlainCard()
@@ -200,26 +217,17 @@ final class AcceleraFullscreenViewController: UIViewController {
         view.addGestureRecognizer(swipeRight)
     }
 
-    private func loadEntryIds() {
-        let root = (try? JSONSerialization.jsonObject(with: jsonData)) as? [String: Any]
-        let fullscreens = root?["fullscreens"] as? [String: Any]
-        self.entryIds = fullscreens?.keys.sorted() ?? []
-        self.currentEntryIndex = entryIds.firstIndex(of: currentEntryId ?? "") ?? 0
-    }
-
     private func loadEntry(id: String, lastCard: Bool = false) {
         displayLink?.invalidate()
-                
-        guard let root = (try? JSONSerialization.jsonObject(with: jsonData)) as? [String: Any],
-              let fullscreens = root["fullscreens"] as? [String: Any],
-              let entry = fullscreens[id] as? [String: Any],
-              let cards = entry["cards"] as? [[String: Any]] else {
+
+        guard let index = stories.firstIndex(where: { $0.id == id }) else {
             dismiss(animated: true); return
         }
 
         currentEntryId = id
-        currentEntryIndex = entryIds.firstIndex(of: id) ?? 0
-        self.currentCards = cards
+        currentEntryIndex = index
+        let cards = stories[index].cards
+        currentCards = cards
         
         currentCardIndex = lastCard ? cards.count - 1 : 0
         updateCloseButtonVisibility()
@@ -454,11 +462,11 @@ final class AcceleraFullscreenViewController: UIViewController {
     }
 
     private func moveToNextEntry() {
-        guard currentEntryIndex + 1 < entryIds.count else {
+        guard currentEntryIndex + 1 < stories.count else {
             closeFullscreen()
             return
         }
-        let nextId = entryIds[currentEntryIndex + 1]
+        let nextId = stories[currentEntryIndex + 1].id
         transitionToEntry(id: nextId, direction: 1, lastCard: false)
     }
 
@@ -474,7 +482,7 @@ final class AcceleraFullscreenViewController: UIViewController {
             }
         }
 
-        let prevId = entryIds[currentEntryIndex - 1]
+        let prevId = stories[currentEntryIndex - 1].id
         let lastCard = fromTap
         transitionToEntry(id: prevId, direction: -1, lastCard: lastCard)
     }

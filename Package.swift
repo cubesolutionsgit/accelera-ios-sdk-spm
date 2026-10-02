@@ -11,7 +11,8 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/divkit/divkit-ios.git", from: "32.0.0"),
-        .package(url: "https://github.com/airbnb/lottie-spm.git", from: "4.5.0")
+        .package(url: "https://github.com/airbnb/lottie-spm.git", from: "4.5.0"),
+        .package(url: "https://github.com/jpsim/Yams.git", from: "6.2.2")
     ],
     targets: [
         .target(
@@ -19,7 +20,8 @@ let package = Package(
             dependencies: [
                     .product(name: "DivKit", package: "divkit-ios"),
                     .product(name: "DivKitExtensions", package: "divkit-ios"),
-                    .product(name: "Lottie", package: "lottie-spm")
+                    .product(name: "Lottie", package: "lottie-spm"),
+                    .product(name: "Yams", package: "Yams")
                 ],
                 path: "Sources/Modules/all",
                 swiftSettings: [
@@ -32,7 +34,8 @@ let package = Package(
             dependencies: [
                 .product(name: "DivKit", package: "divkit-ios"),
                 .product(name: "DivKitExtensions", package: "divkit-ios"),
-                .product(name: "Lottie", package: "lottie-spm")
+                .product(name: "Lottie", package: "lottie-spm"),
+                .product(name: "Yams", package: "Yams")
             ],
             path: "Sources/Modules/banners",
             swiftSettings: [
