@@ -10,14 +10,31 @@
    ```
    https://github.com/cubesolutionsgit/accelera-ios-sdk-spm.git
    ```
-4. Выберите версию `0.6.4`
+4. Выберите версию `1.0.0`.
 5. **Важно:** выберите **только один продукт** из списка:
 
 | Продукт               | Описание                                |
 |------------------------|-----------------------------------------|
-| `Accelera`             | Всё сразу: контент + уведомления        |
+| `Accelera`             | Контент + API уведомлений               |
 | `AcceleraBanners`      | Баннеры, сторис и попапы                |
 | `AcceleraNotifications`| События push-уведомлений                |
+
+## Переход с `0.x` на `1.x`
+
+### Общие шаги
+
+1. В Xcode → **Package Dependencies** у Accelera измените минимальную версию на `1.0.0`.
+2. Если приложение использует push-уведомления, выполните дополнительные шаги ниже.
+3. Обновите зависимости, пересоберите приложение и проверьте используемые функции SDK.
+
+Для баннеров, сторис и попапов код интеграции менять не требуется: продукты `Accelera` и `AcceleraBanners`, импорты, конфигурация, делегат и методы отображения контента сохраняются. Подключать Firebase для контента не нужно.
+
+### Дополнительно для push-уведомлений
+
+1. Подключите пакет `firebase-ios-sdk` и продукты `FirebaseCore` и `FirebaseMessaging` к target приложения. Сохраните `GoogleService-Info.plist` приложения и настройки APNs.
+2. Перенесите `FirebaseApp.configure()` и назначение `Messaging.messaging().delegate` в приложение; передавайте FCM-токен через `Accelera.shared.setPushToken(_:provider:)`.
+3. В обработчике открытия push-уведомления вызывайте `Accelera.shared.handlePushNotificationOpened(userInfo:)`.
+4. Если ваш `AcceleraAPIProtocol` отправляет push-события через собственный API, переименуйте `logFirebaseEvent(data:completion:)` в `logPushEvent(data:completion:)`. Без push этот метод реализовывать не нужно. Если сервер строго проверяет JSON события `token`, разрешите новое поле `context.provider`.
 
 ## ⚙️ Конфигурация
 
@@ -53,7 +70,7 @@ extension MyViewController: AcceleraAPIProtocol {
     func logEvent(data: Data?, completion: @escaping (Data?, NetworkError?) -> Void) -> URLSessionDataTask? {
         // вызов вашего backend
     }
-    // ... остальные методы
+    // Реализуйте только методы, которые нужны вашему приложению.
 }
 ```
 
@@ -61,16 +78,20 @@ extension MyViewController: AcceleraAPIProtocol {
 
 ## 🔔 Push-уведомления
 
-Для push-уведомлений приложение настраивает Firebase Cloud Messaging самостоятельно и передаёт FCM-токен в Accelera. Сам SDK Firebase не подключает.
+Приложение настраивает Firebase Cloud Messaging самостоятельно и передаёт FCM-токен в Accelera. Сам SDK Firebase не подключает.
 
 ### Firebase Cloud Messaging
+
+Подключите пакет `https://github.com/firebase/firebase-ios-sdk.git` к target приложения с продуктами `FirebaseCore` и `FirebaseMessaging` и настройте FCM по [инструкции Firebase](https://firebase.google.com/docs/cloud-messaging/ios/get-started).
+
+В `AppDelegate` инициализируйте Firebase и назначьте делегат Messaging:
 
 ```swift
 import Accelera
 import FirebaseCore
 import FirebaseMessaging
 
-FirebaseApp.configure()
+FirebaseApp.configure() // один раз при запуске приложения
 Messaging.messaging().delegate = self
 ```
 
@@ -308,7 +329,7 @@ Accelera.shared.setUserInfo(
 
 ---
 
-📄 Версия: `0.6.4`
-📆 Обновлено: август 2026
+📄 Версия: `1.0.0`
+📆 Обновлено: октябрь 2026
 📫 Поддержка: [@cubesolutions](https://github.com/cubesolutionsgit)  
 📚 Полная документация по методам доступна по [ссылке](https://cubesolutionsgit.github.io/accelera-ios-sdk-spm/documentation/accelera)
