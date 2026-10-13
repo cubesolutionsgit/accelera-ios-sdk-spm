@@ -79,17 +79,11 @@ final class DivKitSetup {
 
         return DivKitComponents(
             extensionHandlers: [lottieHandler],
-            fontProvider: CustomFontProvider(),
+            fontProvider: AcceleraFontProvider(),
             imageHolderFactory: imageHolderFactory,
             urlHandler: urlHandler,
             variablesStorage: variablesStorage ?? DivVariablesStorage()
         )
-    }
-
-    private final class CustomFontProvider: DivFontProvider {
-        func font(family: String, weight: DivFontWeight, size: CGFloat) -> UIFont {
-            UIFont(name: family, size: size) ?? .systemFont(ofSize: size)
-        }
     }
 
     private final class LottieAnimationFactory: AsyncSourceAnimatableViewFactory {
