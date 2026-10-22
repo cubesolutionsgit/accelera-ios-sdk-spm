@@ -10,7 +10,7 @@ let package = Package(
         .library(name: "AcceleraNotifications", targets: ["AcceleraNotifications"])
     ],
     dependencies: [
-        .package(url: "https://github.com/divkit/divkit-ios.git", from: "32.0.0"),
+        .package(url: "https://github.com/divkit/divkit-ios.git", from: "33.8.0"),
         .package(url: "https://github.com/airbnb/lottie-spm.git", from: "4.5.0"),
         .package(url: "https://github.com/jpsim/Yams.git", from: "6.2.2")
     ],
