@@ -40,7 +40,7 @@ extension Accelera {
         let context = AcceleraAttachedContentContext(container: container, data: data)
         acceleraContentContexts.setObject(context, forKey: container)
         context.load(isInitialLoad: true)
-        return AcceleraContentHandle(context: context)
+        return context.handle
     }
 
     /// Reloads content in the given container using the original request parameters.
@@ -69,7 +69,8 @@ extension Accelera {
     /// The presenting view controller is resolved automatically from the active window.
     ///
     /// - Parameter data: Optional request parameters to be sent to the backend.
-    public func showPopup(data: Data? = nil) {
+    @discardableResult
+    public func showPopup(data: Data? = nil) -> AcceleraContentHandle {
         showPopup(from: nil, data: data)
     }
 
@@ -81,15 +82,18 @@ extension Accelera {
     /// - Parameters:
     ///   - presentingViewController: The view controller that should present the popup.
     ///   - data: Optional request parameters to be sent to the backend.
-    public func showPopup(from presentingViewController: UIViewController?, data: Data? = nil) {
+    @discardableResult
+    public func showPopup(from presentingViewController: UIViewController?, data: Data? = nil) -> AcceleraContentHandle {
+        let context = AcceleraAttachedContentContext(container: nil, data: data)
+        let handle = context.handle
         let sourceVC = UIApplication.shared.acceleraTopMostViewController()
         guard let hostVC = presentingViewController ?? sourceVC else {
             error("No view controller to present popup from.")
-            return
+            return handle
         }
 
         loadPreparedContent(data: data) { [weak self, weak sourceVC, weak hostVC] jsonData in
-            guard let self else { return }
+            guard let self, !context.isDetached else { return }
             guard let sourceVC,
                   let hostVC,
                   UIApplication.shared.acceleraTopMostViewController() === sourceVC else {
@@ -97,10 +101,13 @@ extension Accelera {
                 return
             }
 
-            let vc = AcceleraFullscreenViewController(jsonData: jsonData)
+            context.jsonData = jsonData
+            let vc = AcceleraFullscreenViewController(jsonData: jsonData, originContext: context)
+            context.presentationViewController = vc
             vc.modalPresentationStyle = .overFullScreen
             hostVC.present(vc, animated: true)
         }
+        return handle
     }
 
     fileprivate func loadPreparedContent(
@@ -152,9 +159,17 @@ extension Accelera {
 
 public final class AcceleraContentHandle {
     private weak var context: AcceleraAttachedContentContext?
+    weak var fullscreenViewController: AcceleraFullscreenViewController?
 
-    init(context: AcceleraAttachedContentContext) {
+    init(context: AcceleraAttachedContentContext? = nil) {
         self.context = context
+    }
+
+    /// Controls the associated fullscreen while it is presented; otherwise returns nil.
+    @MainActor public var activeFullscreen: AcceleraFullscreenHandle? {
+        guard let controller = fullscreenViewController else { return nil }
+        let handle = AcceleraFullscreenHandle(controller: controller)
+        return handle.isActive ? handle : nil
     }
 
     /// Reloads content using the original request parameters.
@@ -162,32 +177,63 @@ public final class AcceleraContentHandle {
         context?.load()
     }
 
-    /// Removes attached content from its container.
+    /// Removes attached content or closes the popup and screens presented above it.
     public func detach() {
         context?.detach()
+    }
+}
+
+/// Controls one fullscreen without retaining its view controller.
+@MainActor public final class AcceleraFullscreenHandle {
+    private weak var controller: AcceleraFullscreenViewController?
+
+    fileprivate init(controller: AcceleraFullscreenViewController) {
+        self.controller = controller
+    }
+
+    fileprivate var isActive: Bool {
+        controller?.presentingViewController != nil && controller?.isBeingDismissed == false
+    }
+
+    public func close() {
+        guard isActive else { return }
+        controller?.closeFullscreen()
+    }
+
+    /// Buffering remains an independent reason to keep the timer paused.
+    public func setPaused(_ paused: Bool) {
+        guard isActive else { return }
+        controller?.setStoryPaused(paused)
     }
 }
 
 private let acceleraContentContexts = NSMapTable<UIView, AcceleraAttachedContentContext>.weakToStrongObjects()
 
 final class AcceleraAttachedContentContext: NSObject {
+    lazy var handle = AcceleraContentHandle(context: self)
+    weak var presentationViewController: AcceleraFullscreenViewController?
+    private weak var sourceContext: AcceleraAttachedContentContext?
     private weak var container: UIView?
     private let data: Data?
     private var divView: DivView?
     private var divKitViewContext: DivKitViewContext?
     private var divKitComponents: DivKitComponents?
-    private let variablesStorage = DivVariablesStorage()
+    private let variablesStorage: DivVariablesStorage
     private var cardId: DivCardID?
-    private var jsonData: Data?
+    fileprivate var jsonData: Data?
+    fileprivate var isDetached = false
     private var isRefreshing = false
 
-    init(container: UIView, data: Data?) {
+    init(container: UIView?, data: Data?, sourceContext: AcceleraAttachedContentContext? = nil) {
         self.container = container
         self.data = data
+        self.sourceContext = sourceContext
+        self.variablesStorage = sourceContext?.sharedVariablesStorage() ?? DivVariablesStorage()
     }
 
     func load(isInitialLoad: Bool = false) {
-        guard let container, !isRefreshing else { return }
+        guard let container else { sourceContext?.load(isInitialLoad: isInitialLoad); return }
+        guard !isRefreshing else { return }
         isRefreshing = true
 
         if isInitialLoad {
@@ -252,10 +298,12 @@ final class AcceleraAttachedContentContext: NSObject {
 
     func detach() {
         Accelera.shared.logEvent(event: ["event": "close", "meta": jsonData?.meta].asData)
+        presentationViewController?.closeFullscreen()
         remove()
     }
 
     func remove() {
+        isDetached = true
         divView?.removeFromSuperview()
         divView = nil
         divKitViewContext = nil

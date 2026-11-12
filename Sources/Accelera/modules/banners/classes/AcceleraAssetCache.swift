@@ -20,6 +20,7 @@ enum AcceleraAssetCache {
 
     private enum AssetKind {
         case image
+        case video
     }
 
     static func prepare(
@@ -30,7 +31,19 @@ enum AcceleraAssetCache {
 
         var blocking: [String: AssetKind] = [:]
         var lazy: [String: AssetKind] = [:]
-        collectAssets(node: json, inLazyZone: false, blocking: &blocking, lazy: &lazy)
+        collectAssets(node: json, inFullscreen: false, blocking: &blocking, lazy: &lazy)
+
+        try? queue.sync(flags: .barrier) {
+            let now = Date()
+            for remote in Array(blocking.keys) + Array(lazy.keys) { try? FileManager.default.setAttributes([.modificationDate: now], ofItemAtPath: directoryURL.appendingPathComponent(filenameFor(remote)).path) }
+            let cutoff = now.addingTimeInterval(-7 * 24 * 60 * 60)
+            let files = try FileManager.default.contentsOfDirectory(at: directoryURL, includingPropertiesForKeys: [.contentModificationDateKey])
+            for file in files where ((try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? now) < cutoff { try? FileManager.default.removeItem(at: file) }
+        }
+
+        for (remote, _) in lazy {
+            scheduleDownload(remote: remote)
+        }
 
         if !blocking.isEmpty {
             let total = blocking.count
@@ -54,10 +67,6 @@ enum AcceleraAssetCache {
                     }
                 }
             }
-        }
-
-        for (remote, _) in lazy {
-            scheduleDownload(remote: remote)
         }
 
         return data
@@ -96,28 +105,31 @@ enum AcceleraAssetCache {
 
     private static func collectAssets(
         node: Any,
-        inLazyZone: Bool,
+        inFullscreen: Bool,
         blocking: inout [String: AssetKind],
         lazy: inout [String: AssetKind]
     ) {
         if let dict = node as? [String: Any] {
             for (key, value) in dict {
-                let nextLazy = inLazyZone || key == "fullscreens"
+                let insideFullscreen = inFullscreen || key == "fullscreens"
 
                 if let string = value as? String,
                    let kind = assetKind(key: key, value: string, parent: dict) {
-                    if nextLazy {
+                    switch kind {
+                    case .video:
                         lazy[string] = kind
-                    } else {
+                    case .image where insideFullscreen:
+                        lazy[string] = kind
+                    case .image:
                         blocking[string] = kind
                     }
                 }
 
-                collectAssets(node: value, inLazyZone: nextLazy, blocking: &blocking, lazy: &lazy)
+                collectAssets(node: value, inFullscreen: insideFullscreen, blocking: &blocking, lazy: &lazy)
             }
         } else if let array = node as? [Any] {
             for item in array {
-                collectAssets(node: item, inLazyZone: inLazyZone, blocking: &blocking, lazy: &lazy)
+                collectAssets(node: item, inFullscreen: inFullscreen, blocking: &blocking, lazy: &lazy)
             }
         }
     }
@@ -130,6 +142,10 @@ enum AcceleraAssetCache {
 
         if key == "image_url" {
             return .image
+        }
+        let mime = (parent["mime_type"] as? String ?? "").lowercased()
+        if key == "url", mime.hasPrefix("video/"), !mime.contains("mpegurl") {
+            return .video
         }
 
         return nil
@@ -154,13 +170,19 @@ enum AcceleraAssetCache {
             )
         }
 
-        let (data, _) = try await URLSession.shared.data(from: url)
-        try data.write(to: fileURL, options: .atomic)
+        let (temporaryURL, response) = try await URLSession.shared.download(from: url)
+        defer { try? FileManager.default.removeItem(at: temporaryURL) }
+        guard let response = response as? HTTPURLResponse, (200..<300).contains(response.statusCode) else { throw URLError(.badServerResponse) }
+        try queue.sync(flags: .barrier) {
+            guard !FileManager.default.fileExists(atPath: fileURL.path) else { return }
+            try FileManager.default.moveItem(at: temporaryURL, to: fileURL)
+        }
     }
 
     private static func filenameFor(_ string: String) -> String {
         let data = Data(string.utf8)
         let digest = SHA256.hash(data: data)
-        return digest.map { String(format: "%02x", $0) }.joined()
+        let ext = URL(string: string)?.pathExtension ?? ""
+        return digest.map { String(format: "%02x", $0) }.joined() + (ext.isEmpty ? "" : ".\(ext)")
     }
 }

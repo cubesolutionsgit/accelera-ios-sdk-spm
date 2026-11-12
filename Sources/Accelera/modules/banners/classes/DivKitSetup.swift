@@ -8,6 +8,7 @@
 #if ACCELERA_BANNERS_ENABLED
 
 import UIKit
+import AVFoundation
 import DivKit
 import DivKitExtensions
 import Lottie
@@ -81,6 +82,7 @@ final class DivKitSetup {
             extensionHandlers: [lottieHandler],
             fontProvider: AcceleraFontProvider(),
             imageHolderFactory: imageHolderFactory,
+            playerFactory: DefaultPlayerFactory(itemsProvider: CacheVideoProvider()),
             urlHandler: urlHandler,
             variablesStorage: variablesStorage ?? DivVariablesStorage()
         )
@@ -99,6 +101,12 @@ final class DivKitSetup {
                 animationView.loopMode = count == -1 ? .autoReverse : .repeatBackwards(count / 2)
             }
             return animationView
+        }
+    }
+
+    private final class CacheVideoProvider: PlayerItemsProvider {
+        func getAVPlayerItem(from url: URL, completion: @escaping (AVPlayerItem) -> Void) {
+            completion(AVPlayerItem(url: AcceleraAssetCache.existingFileURL(forRemote: url.absoluteString) ?? url))
         }
     }
 

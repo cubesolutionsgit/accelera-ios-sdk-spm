@@ -16,7 +16,7 @@ import Yams
 final class AcceleraFullscreenViewController: UIViewController {
 
     private let jsonData: Data
-    private weak var originContext: AcceleraAttachedContentContext?
+    private let originContext: AcceleraAttachedContentContext?
     private let sourceCardId: DivCardID?
 
     private var divView: DivView!
@@ -36,6 +36,7 @@ final class AcceleraFullscreenViewController: UIViewController {
     private var stateStartTime: CFTimeInterval = 0
     private var stateDuration: CFTimeInterval = 0
     private var isPaused: Bool = false
+    private var bufferingVideos: Set<String> = []
     private var pauseTime: CFTimeInterval = 0
     private var isTransitioning: Bool = false
     private lazy var plainCard: [String: Any]? = {
@@ -76,16 +77,20 @@ final class AcceleraFullscreenViewController: UIViewController {
         view.backgroundColor = currentEntryId == nil ? .clear : .black
         view.isOpaque = currentEntryId != nil
         
-        setupDivView()
-
         if let currentEntryId {
             currentEntryIndex = stories.firstIndex { $0.id == currentEntryId } ?? 0
             loadEntry(id: currentEntryId)
             setupTapZones(multipleEntries: stories.count > 1 || currentCards.count > 1)
         } else {
+            setupDivView()
             updateCloseButtonVisibility()
             showPlainCard()
         }
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        super.touchesEnded(touches, with: event)
+        if isPaused, touches.first?.gestureRecognizers?.contains(where: { $0.state == .recognized }) != true { setStoryPaused(false) }
     }
 
     override func viewDidLayoutSubviews() {
@@ -99,6 +104,7 @@ final class AcceleraFullscreenViewController: UIViewController {
     }
 
     private func setupDivView() {
+        divView?.removeFromSuperview()
         let context = DivKitSetup.makeView(
             from: jsonData,
             presentingViewController: self,
@@ -109,7 +115,7 @@ final class AcceleraFullscreenViewController: UIViewController {
         divKitComponents = context.components
         divView.backgroundColor = .clear
         divView.isOpaque = false
-        view.addSubview(divView)
+        view.insertSubview(divView, at: 0)
         divView.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             divView.topAnchor.constraint(equalTo: view.topAnchor),
@@ -117,6 +123,8 @@ final class AcceleraFullscreenViewController: UIViewController {
             divView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             divView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
+        view.subviews.compactMap { $0 as? PassthroughZoneView }.forEach { $0.divView = divView }
+        updateSafeAreaInsets()
     }
 
     private func updateSafeAreaInsets() {
@@ -147,7 +155,7 @@ final class AcceleraFullscreenViewController: UIViewController {
         view.addSubview(button)
         NSLayoutConstraint.activate([
             button.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 28),
-            button.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16)
+            button.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -16)
         ])
         self.closeButton = button
     }
@@ -255,8 +263,8 @@ final class AcceleraFullscreenViewController: UIViewController {
 
         NSLayoutConstraint.activate([
             stack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
-            stack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
-            stack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
+            stack.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 8),
+            stack.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -8),
             stack.heightAnchor.constraint(equalToConstant: 2)
         ])
 
@@ -297,20 +305,10 @@ final class AcceleraFullscreenViewController: UIViewController {
                     bar.setProgress(0)
                 }
 
-                guard let data = try? JSONSerialization.data(withJSONObject: currentCards[restartIndex]) else { return }
-
-                let cardId = divKitCardId(for: restartIndex)
-                let source = DivViewSource(kind: .data(data), cardId: cardId)
-
                 guard
                     let card = currentCard
                 else {
                     return
-                }
-
-                Task {
-                    await divView.setSource(source)
-                    Accelera.shared.logEvent(event: ["event": "view", "meta": card["meta"] ?? [:]].asData)
                 }
 
                 if let duration = card["duration"] as? Int {
@@ -327,6 +325,9 @@ final class AcceleraFullscreenViewController: UIViewController {
                 stateStartTime = CACurrentMediaTime()
                 displayLink = CADisplayLink(target: self, selector: #selector(updateProgress))
                 displayLink?.add(to: .main, forMode: .common)
+                updateTimerPause()
+                resetVideos(in: divView)
+                Accelera.shared.logEvent(event: ["event": "view", "meta": card["meta"] ?? [:]].asData)
             }
             return
         }
@@ -339,6 +340,8 @@ final class AcceleraFullscreenViewController: UIViewController {
         displayLink?.invalidate()
         displayLink = nil
 
+        bufferingVideos.removeAll()
+        isPaused = false
         currentCardIndex = index
         updateCloseButtonVisibility()
 
@@ -357,8 +360,10 @@ final class AcceleraFullscreenViewController: UIViewController {
             return
         }
 
-        Task {
+        setupDivView()
+        Task { [divView = self.divView!] in
             await divView.setSource(source)
+            resetVideos(in: divView)
             Accelera.shared.logEvent(event: ["event": "view", "meta": card["meta"] ?? [:]].asData)
         }
 
@@ -381,7 +386,7 @@ final class AcceleraFullscreenViewController: UIViewController {
     private func showPlainCard() {
         let source = DivViewSource(
             kind: .data(jsonData),
-            cardId: DivCardID(rawValue: "popup_\(UUID().uuidString)")
+            cardId: divKitCardId(for: currentCardIndex)
         )
 
         Task {
@@ -408,6 +413,7 @@ final class AcceleraFullscreenViewController: UIViewController {
     }
 
     @objc private func nextCardTapped() {
+        if isPaused { setStoryPaused(false); return }
         logCurrentCardDismissByUser()
         nextCard()
     }
@@ -418,6 +424,7 @@ final class AcceleraFullscreenViewController: UIViewController {
     }
 
     @objc private func prevCardTapped() {
+        if isPaused { setStoryPaused(false); return }
         prevCard()
     }
 
@@ -496,6 +503,11 @@ final class AcceleraFullscreenViewController: UIViewController {
         }
     }
     
+    private func resetVideos(in view: UIView) {
+        if let player = (view.layer as? AVPlayerLayer)?.player { player.seek(to: .zero) }
+        view.subviews.forEach { resetVideos(in: $0) }
+    }
+
     func pauseVideos(in view: UIView) {
         for subview in view.subviews {
             if let playerLayer = subview.layer.sublayers?.compactMap({ $0 as? AVPlayerLayer }).first,
@@ -525,25 +537,45 @@ final class AcceleraFullscreenViewController: UIViewController {
         }
     }
     
+    func setStoryPaused(_ paused: Bool, buffering: Bool = false, videoId: String? = nil, cardId: DivCardID? = nil) {
+        guard cardId == nil || cardId == divKitCardId(for: currentCardIndex) else { return }
+        if buffering {
+            guard let videoId, !videoId.isEmpty else { return }
+            if paused { bufferingVideos.insert(videoId) } else { bufferingVideos.remove(videoId) }
+        } else { isPaused = paused }
+        updateTimerPause()
+        guard !buffering else { return }
+        if paused {
+            pauseVideos(in: divView)
+            pauseLottieAnimations(in: divView)
+        } else {
+            playVideos(in: divView)
+            playLottieAnimations(in: divView)
+        }
+    }
+
+    private func updateTimerPause() {
+        guard let displayLink else { return }
+        let paused = isPaused || !bufferingVideos.isEmpty
+        guard paused != displayLink.isPaused else { return }
+        if paused {
+            pauseTime = CACurrentMediaTime()
+        } else {
+            stateStartTime += CACurrentMediaTime() - pauseTime
+        }
+        displayLink.isPaused = paused
+    }
+
     @objc private func handlePress(_ gesture: UILongPressGestureRecognizer) {
         switch gesture.state {
         case .began:
             if !isPaused {
-                displayLink?.isPaused = true
-                pauseVideos(in: divView)
-                pauseLottieAnimations(in: divView)
-                pauseTime = CACurrentMediaTime()
-                isPaused = true
+                setStoryPaused(true)
             }
 
         case .ended, .cancelled, .failed:
             if isPaused {
-                let pausedDuration = CACurrentMediaTime() - pauseTime
-                stateStartTime += pausedDuration
-                displayLink?.isPaused = false
-                playVideos(in: divView)
-                playLottieAnimations(in: divView)
-                isPaused = false
+                setStoryPaused(false)
             }
 
         default:
@@ -575,9 +607,14 @@ final class AcceleraFullscreenViewController: UIViewController {
     }
 
     func closeFullscreen() {
-        displayLink?.invalidate()
-        displayLink = nil
-        dismiss(animated: true)
+        var controller: UIViewController? = self
+        while let current = controller {
+            let fullscreen = current as? AcceleraFullscreenViewController
+            fullscreen?.displayLink?.invalidate()
+            fullscreen?.displayLink = nil
+            controller = current.presentedViewController
+        }
+        presentingViewController?.dismiss(animated: true)
     }
 
     private func logCurrentCardDismissByUser() {

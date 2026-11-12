@@ -51,16 +51,17 @@ final class AcceleraUrlHandler: DivUrlHandler {
         
         switch actionType {
         case "fullscreen":
-            guard let id = URLComponents(string: url.absoluteString)?
-                .queryItems?
-                .first(where: { $0.name == "id" })?.value else { return }
+            guard let id = actionParams["id"] else { return }
+            let context = AcceleraAttachedContentContext(container: nil, data: nil, sourceContext: originContext)
             
             let vc = AcceleraFullscreenViewController(
                 jsonData: jsonData,
                 entryId: id,
-                originContext: originContext,
+                originContext: context,
                 sourceCardId: sourceCardId
             )
+            context.presentationViewController = vc
+            originContext?.handle.fullscreenViewController = vc
             vc.modalPresentationStyle = .overFullScreen
             hostVC?.present(vc, animated: true)
             
@@ -76,6 +77,16 @@ final class AcceleraUrlHandler: DivUrlHandler {
                 Accelera.shared.error("No 'url' parameter found in link action")
             }
             
+        case "pause":
+            (hostVC as? AcceleraFullscreenViewController)?.setStoryPaused(true, cardId: sourceCardId)
+
+        case "resume":
+            (hostVC as? AcceleraFullscreenViewController)?.setStoryPaused(false, cardId: sourceCardId)
+
+        case "buffering":
+            guard let value = Bool(actionParams["value"] ?? ""), let id = actionParams["id"], !id.isEmpty else { return }
+            (hostVC as? AcceleraFullscreenViewController)?.setStoryPaused(value, buffering: true, videoId: id, cardId: sourceCardId)
+
         case "close":
             if let fullscreenVC = hostVC as? AcceleraFullscreenViewController {
                 fullscreenVC.closeFullscreen()

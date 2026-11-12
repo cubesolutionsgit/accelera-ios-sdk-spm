@@ -192,6 +192,16 @@ Accelera.shared.detachContentPlaceholder(from: bannerPlaceholder)
 
 `refresh` повторно загружает контент с теми же параметрами, `detach` убирает контент из контейнера.
 
+Открытым из этого контента fullscreen можно управлять через тот же handle, на главном потоке:
+
+```swift
+bannerHandle.activeFullscreen?.setPaused(true)  // Таймер, видео и анимации на паузу.
+bannerHandle.activeFullscreen?.setPaused(false) // Продолжить; таймер всё ещё ждёт активную буферизацию.
+bannerHandle.activeFullscreen?.close()          // Закрыть fullscreen, сохранив контент в контейнере.
+```
+
+`activeFullscreen` равен `nil` до открытия и после закрытия fullscreen. Сохранённая ссылка действует только до закрытия соответствующего экрана.
+
 ### SwiftUI
 
 В SwiftUI можно использовать `AcceleraAutoHeightPlaceholderWrapper`, чтобы высота `UIView`-placeholder автоматически синхронизировалась с высотой загруженного контента и уменьшалась до `0`, когда контент исчезает.
@@ -291,6 +301,20 @@ Accelera.shared.showPopup(
 ```
 
 Параметры в `data` передаются на сервер так же, как для баннеров и сторис. Конкретные ключи определяются вашей серверной конфигурацией.
+
+Обе версии `showPopup` возвращают `AcceleraContentHandle`; сохранять его необязательно:
+
+```swift
+let popupHandle = Accelera.shared.showPopup(data: ["type": "popup"].asData)
+// Управление сториз, открытыми поверх попапа:
+popupHandle.activeFullscreen?.setPaused(true)
+popupHandle.activeFullscreen?.setPaused(false)
+popupHandle.activeFullscreen?.close()
+// Закрыть сам попап вместе с открытыми поверх него экранами:
+popupHandle.detach()
+```
+
+`activeFullscreen` равен `nil`, пока из попапа не открыты сториз, и после их закрытия. Закрытие сториз возвращает к попапу. `detach()` закрывает сам попап и экраны над ним. `refresh()` обновляет только контент в контейнере.
 
 ## ⚡️ Обработка действий
 
