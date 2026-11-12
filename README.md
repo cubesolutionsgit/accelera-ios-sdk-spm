@@ -12,7 +12,7 @@
    ```
    https://github.com/cubesolutionsgit/accelera-ios-sdk-spm.git
    ```
-4. Выберите версию `1.0.1`.
+4. Выберите версию `1.1.0`.
 5. **Важно:** выберите **только один продукт** из списка:
 
 | Продукт               | Описание                                |
@@ -25,7 +25,7 @@
 
 ### Общие шаги
 
-1. В Xcode → **Package Dependencies** у Accelera измените минимальную версию на `1.0.1`.
+1. В Xcode → **Package Dependencies** у Accelera измените минимальную версию на `1.1.0`.
 2. Если приложение использует push-уведомления, выполните дополнительные шаги ниже.
 3. Обновите зависимости, пересоберите приложение и проверьте используемые функции SDK.
 
@@ -355,7 +355,7 @@ Accelera.shared.setUserInfo(
 
 ---
 
-📄 Версия: `1.0.1`
-📆 Обновлено: 22 октября 2026
+📄 Версия: `1.1.0`
+📆 Обновлено: 12 ноября 2026
 📫 Поддержка: [@cubesolutions](https://github.com/cubesolutionsgit)  
 📚 Полная документация по методам доступна по [ссылке](https://cubesolutionsgit.github.io/accelera-ios-sdk-spm/documentation/accelera)
